@@ -311,6 +311,61 @@ def test_operations_freshness_endpoint(api_client):
     assert set(payload["summary"]).issuperset({"ok", "violated", "unknown_sla"})
 
 
+def test_collection_readiness_endpoint_reports_active_targets(db_session, api_client):
+    source = f"pytest-readiness-{uuid4()}"
+    target = CollectionTarget(
+        module="ecommerce",
+        source_name=source,
+        collector_name="poupi_legacy_raw_collector",
+        target_url=f"https://example.test/{uuid4()}",
+        active=True,
+        metadata_json={"pytest": True},
+    )
+    db_session.add(target)
+    db_session.commit()
+
+    response = api_client.get("/api/v1/operations/collection-readiness")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["target_count"] >= 1
+    assert any(item["target"]["source_name"] == source for item in payload["targets"])
+
+
+def test_collection_coverage_endpoint_reports_active_and_candidate_targets(db_session, api_client):
+    source = f"pytest-coverage-{uuid4()}"
+    db_session.add_all(
+        [
+            CollectionTarget(
+                module="ecommerce",
+                source_name=source,
+                collector_name="poupi_legacy_raw_collector",
+                target_url=f"https://example.test/active-{uuid4()}",
+                active=True,
+                metadata_json={"pytest": True},
+            ),
+            CollectionTarget(
+                module="ecommerce",
+                source_name=source,
+                collector_name="poupi_legacy_raw_collector",
+                target_url=f"https://example.test/candidate-{uuid4()}",
+                active=False,
+                metadata_json={"inactive_reason": "pytest candidate"},
+            ),
+        ]
+    )
+    db_session.commit()
+
+    response = api_client.get(f"/api/v1/operations/collection-coverage?source_name={source}&active=false")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["summary"]["target_count"] == 1
+    assert payload["summary"]["candidate_target_count"] == 1
+    assert payload["targets"][0]["status"] == "candidate"
+    assert "pytest candidate" in payload["targets"][0]["issues"]
+
+
 def test_collector_error_resolution_endpoint(db_session, api_client):
     error = CollectorError(
         collector_name=f"pytest-collector-{uuid4()}",
@@ -389,6 +444,8 @@ def test_collection_targets_import_and_source_status(db_session, api_client):
     imported = api_client.post("/api/v1/collection-targets/import", json=payload)
     assert imported.status_code == 200
     assert imported.json()["created"] == 1
+    assert imported.json()["skipped"] == 0
+    assert imported.json()["errors"] == []
     assert imported.json()["targets"][0]["metadata_json"]["kind"] == "production_target"
 
     status = api_client.get(f"/api/v1/sources/ecommerce/{source}/status")
@@ -397,6 +454,38 @@ def test_collection_targets_import_and_source_status(db_session, api_client):
     assert body["targets"]["total"] == 1
     assert body["targets"]["active"] == 1
     assert body["analytics_pending"] == 0
+
+
+def test_collection_targets_import_reports_validation_errors(db_session, api_client):
+    source = f"pytest-invalid-import-{uuid4()}"
+    payload = {
+        "targets": [
+            {
+                "module": "ecommerce",
+                "source_name": "drogasil",
+                "collector_name": "poupi_legacy_raw_collector",
+                "target_url": "not-a-url",
+                "metadata_json": {"owner": "pytest", "category": "baby", "product_seed": source},
+            },
+            {
+                "module": "ecommerce",
+                "source_name": "drogasil",
+                "collector_name": "poupi_legacy_raw_collector",
+                "target_url": f"https://www.paguemenos.com.br/{uuid4()}/p",
+                "metadata_json": {"owner": "pytest", "category": "baby", "product_seed": source},
+            },
+        ]
+    }
+
+    imported = api_client.post("/api/v1/collection-targets/import", json=payload)
+
+    assert imported.status_code == 200
+    body = imported.json()
+    assert body["created"] == 0
+    assert body["skipped"] == 2
+    assert len(body["errors"]) == 2
+    assert "valid http(s) URL" in body["errors"][0]["message"]
+    assert "incompatible" in body["errors"][1]["message"]
 
 
 def test_collection_target_runner_skips_locked_target(db_session):

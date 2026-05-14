@@ -2,6 +2,7 @@ import re
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 from typing import Any
+from urllib.parse import urlparse
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -157,16 +158,42 @@ def import_collection_targets(
 ) -> dict[str, Any]:
     created = 0
     updated = 0
+    skipped = 0
     rows = []
-    for target_payload in payload.targets:
+    validation_errors = []
+    validation_warnings = []
+    seen: set[tuple[str, str, str, str]] = set()
+    for index, target_payload in enumerate(payload.targets):
         merged_metadata = {
             **(payload.default_metadata_json or {}),
             **(target_payload.metadata_json or {}),
         }
-        target, was_created = _upsert_collection_target(
-            db,
-            target_payload.model_copy(update={"metadata_json": merged_metadata}),
+        merged_payload = target_payload.model_copy(update={"metadata_json": merged_metadata})
+        identity = (
+            merged_payload.module,
+            merged_payload.source_name,
+            merged_payload.collector_name,
+            merged_payload.target_url,
         )
+        if identity in seen:
+            skipped += 1
+            validation_errors.append(
+                {
+                    "index": index,
+                    "target_url": merged_payload.target_url,
+                    "source_name": merged_payload.source_name,
+                    "message": "duplicate target in import payload",
+                }
+            )
+            continue
+        seen.add(identity)
+        errors, warnings = _validate_collection_target_payload(merged_payload)
+        validation_errors.extend({"index": index, **item} for item in errors)
+        validation_warnings.extend({"index": index, **item} for item in warnings)
+        if errors:
+            skipped += 1
+            continue
+        target, was_created = _upsert_collection_target(db, merged_payload)
         created += 1 if was_created else 0
         updated += 0 if was_created else 1
         rows.append(target)
@@ -174,7 +201,11 @@ def import_collection_targets(
     return {
         "created": created,
         "updated": updated,
+        "skipped": skipped,
         "total": len(rows),
+        "requested": len(payload.targets),
+        "errors": validation_errors,
+        "warnings": validation_warnings,
         "targets": [_to_dict(row) for row in rows],
     }
 
@@ -202,6 +233,126 @@ def collection_target_status(target_id: UUID, db: Session = Depends(db_session))
     target = db.get(CollectionTarget, target_id)
     if not target:
         raise HTTPException(status_code=404, detail="Collection target not found")
+    return _collection_target_status_payload(db, target)
+
+
+@router.get("/operations/collection-readiness")
+def collection_readiness(db: Session = Depends(db_session)) -> dict[str, Any]:
+    targets = (
+        db.query(CollectionTarget)
+        .filter(CollectionTarget.active.is_(True))
+        .order_by(CollectionTarget.module, CollectionTarget.source_name, CollectionTarget.created_at)
+        .all()
+    )
+    target_statuses = [_collection_target_status_payload(db, target, compact=True) for target in targets]
+    raw_pending = db.query(RawCollection).filter(RawCollection.processing_status == "normalization_pending").count()
+    raw_failed = db.query(RawCollection).filter(RawCollection.processing_status == "normalization_failed").count()
+    analytics_pending = {
+        module: db.query(model).filter(model.analytics_status == "pending").count()
+        for module, model in NORMALIZED_TABLES.items()
+        if hasattr(model, "analytics_status")
+    }
+    unresolved_errors = db.query(CollectorError).filter(CollectorError.resolved_at.is_(None)).count()
+    blocking_targets = [item for item in target_statuses if not item["ready"]]
+    ready = (
+        len(targets) > 0
+        and not blocking_targets
+        and raw_pending == 0
+        and raw_failed == 0
+        and sum(analytics_pending.values()) == 0
+        and unresolved_errors == 0
+    )
+    return {
+        "ready": ready,
+        "target_count": len(targets),
+        "ready_target_count": len(targets) - len(blocking_targets),
+        "blocking_target_count": len(blocking_targets),
+        "raw_pending": raw_pending,
+        "raw_failed": raw_failed,
+        "analytics_pending": analytics_pending,
+        "unresolved_collector_errors": unresolved_errors,
+        "targets": target_statuses,
+    }
+
+
+@router.get("/operations/collection-coverage")
+def collection_coverage(
+    db: Session = Depends(db_session),
+    module: str | None = None,
+    source_name: str | None = None,
+    collector_name: str | None = None,
+    active: bool | None = None,
+    limit: int = Query(default=500, ge=1, le=1000),
+    offset: int = Query(default=0, ge=0),
+) -> dict[str, Any]:
+    ensure_default_collection_targets()
+    query = db.query(CollectionTarget)
+    if module:
+        query = query.filter(CollectionTarget.module == module)
+    if source_name:
+        query = query.filter(CollectionTarget.source_name == source_name)
+    if collector_name:
+        query = query.filter(CollectionTarget.collector_name == collector_name)
+    if active is not None:
+        query = query.filter(CollectionTarget.active.is_(active))
+    targets = (
+        query.order_by(CollectionTarget.module, CollectionTarget.source_name, CollectionTarget.active.desc(), CollectionTarget.created_at)
+        .offset(offset)
+        .limit(limit)
+        .all()
+    )
+
+    rows = [_collection_target_coverage_payload(db, target) for target in targets]
+    by_source: dict[tuple[str, str], dict[str, Any]] = {}
+    for row in rows:
+        target = row["target"]
+        key = (target["module"], target["source_name"])
+        source = by_source.setdefault(
+            key,
+            {
+                "module": target["module"],
+                "source_name": target["source_name"],
+                "target_count": 0,
+                "active_target_count": 0,
+                "ready_target_count": 0,
+                "candidate_target_count": 0,
+                "raw_count": 0,
+                "normalized_count": 0,
+                "analytics_count": 0,
+                "blocked_target_count": 0,
+                "issues": [],
+            },
+        )
+        source["target_count"] += 1
+        source["active_target_count"] += 1 if target["active"] else 0
+        source["ready_target_count"] += 1 if row["ready"] else 0
+        source["candidate_target_count"] += 0 if target["active"] else 1
+        source["raw_count"] += row["raw_count"]
+        source["normalized_count"] += row["normalized_count"]
+        source["analytics_count"] += row["analytics_count"]
+        if row["status"] in {"blocked", "candidate"}:
+            source["blocked_target_count"] += 1
+            source["issues"].extend(row["issues"])
+
+    active_rows = [row for row in rows if row["target"]["active"]]
+    ready_active_rows = [row for row in active_rows if row["ready"]]
+    return {
+        "summary": {
+            "target_count": len(rows),
+            "active_target_count": len(active_rows),
+            "ready_active_target_count": len(ready_active_rows),
+            "candidate_target_count": len(rows) - len(active_rows),
+            "blocked_active_target_count": len(active_rows) - len(ready_active_rows),
+            "raw_count": sum(row["raw_count"] for row in rows),
+            "normalized_count": sum(row["normalized_count"] for row in rows),
+            "analytics_count": sum(row["analytics_count"] for row in rows),
+        },
+        "sources": sorted(by_source.values(), key=lambda item: (item["module"], item["source_name"])),
+        "targets": rows,
+    }
+
+
+def _collection_target_status_payload(db: Session, target: CollectionTarget, *, compact: bool = False) -> dict[str, Any]:
     latest_run = (
         db.query(CollectionRun)
         .filter(
@@ -249,7 +400,7 @@ def collection_target_status(target_id: UUID, db: Session = Depends(db_session))
         freshness_sla=_freshness_sla_for(db, target.module, target.source_name),
         now=datetime.now(timezone.utc),
     )
-    return {
+    payload = {
         "target": _to_dict(target),
         "freshness": freshness,
         "latest_run": _to_dict(latest_run) if latest_run else None,
@@ -257,6 +408,91 @@ def collection_target_status(target_id: UUID, db: Session = Depends(db_session))
         "normalized": [_to_dict(row) for row in normalized],
         "analytics": [_to_dict(row) for row in analytics],
     }
+    readiness_checks = {
+        "active": target.active,
+        "latest_run_success": latest_run is not None and latest_run.status == RunStatus.success,
+        "latest_raw_exists": latest_raw is not None,
+        "latest_raw_normalized": latest_raw is not None and latest_raw.processing_status == "normalized",
+        "normalized_exists": len(normalized) > 0,
+        "analytics_pending_zero": all(getattr(row, "analytics_status", None) != "pending" for row in normalized),
+        "freshness_ok": freshness["status"] == "ok",
+    }
+    payload["ready"] = all(readiness_checks.values())
+    payload["readiness_checks"] = readiness_checks
+    if compact:
+        return {
+            "ready": payload["ready"],
+            "readiness_checks": readiness_checks,
+            "target": _to_dict(target),
+            "freshness": freshness,
+            "latest_run": _to_dict(latest_run) if latest_run else None,
+            "latest_raw": _to_dict(latest_raw, exclude={"raw_content", "raw_json"}) if latest_raw else None,
+            "normalized_count": len(normalized),
+            "analytics_count": len(analytics),
+        }
+    return payload
+
+
+def _collection_target_coverage_payload(db: Session, target: CollectionTarget) -> dict[str, Any]:
+    status_payload = _collection_target_status_payload(db, target, compact=True)
+    target_dict = status_payload["target"]
+    metadata = target_dict.get("metadata_json") or {}
+    checks = status_payload["readiness_checks"]
+    issues = _coverage_issues(checks)
+    if not target.active:
+        status = "candidate"
+        if metadata.get("inactive_reason"):
+            issues.append(str(metadata["inactive_reason"]))
+    elif status_payload["ready"]:
+        status = "ready"
+    else:
+        status = "blocked"
+    latest_raw = status_payload.get("latest_raw")
+    latest_run = status_payload.get("latest_run")
+    return {
+        "status": status,
+        "ready": bool(status_payload["ready"]),
+        "issues": issues,
+        "target": target_dict,
+        "freshness": status_payload["freshness"],
+        "latest_run": {
+            "id": latest_run.get("id"),
+            "status": latest_run.get("status"),
+            "started_at": latest_run.get("started_at"),
+            "finished_at": latest_run.get("finished_at"),
+            "raw_saved_count": latest_run.get("raw_saved_count"),
+            "error_count": latest_run.get("error_count"),
+            "error_message": latest_run.get("error_message"),
+        }
+        if latest_run
+        else None,
+        "latest_raw": {
+            "id": latest_raw.get("id"),
+            "processing_status": latest_raw.get("processing_status"),
+            "collected_at": latest_raw.get("collected_at"),
+            "raw_schema_name": latest_raw.get("raw_schema_name"),
+            "raw_schema_version": latest_raw.get("raw_schema_version"),
+            "error_message": latest_raw.get("error_message"),
+        }
+        if latest_raw
+        else None,
+        "raw_count": 1 if latest_raw else 0,
+        "normalized_count": status_payload["normalized_count"],
+        "analytics_count": status_payload["analytics_count"],
+    }
+
+
+def _coverage_issues(readiness_checks: dict[str, bool]) -> list[str]:
+    labels = {
+        "active": "target is inactive",
+        "latest_run_success": "latest collection run did not succeed",
+        "latest_raw_exists": "no RAW collected for target",
+        "latest_raw_normalized": "latest RAW is not normalized",
+        "normalized_exists": "no normalized record generated",
+        "analytics_pending_zero": "analytics still pending",
+        "freshness_ok": "freshness SLA is not ok",
+    }
+    return [labels[key] for key, value in readiness_checks.items() if not value]
 
 
 @router.delete("/collection-targets/{target_id}")
@@ -866,6 +1102,86 @@ def _upsert_collection_target(db: Session, payload: CollectionTargetRequest) -> 
     target.metadata_json = payload.metadata_json or target.metadata_json or {}
     db.flush()
     return target, created
+
+
+def _validate_collection_target_payload(payload: CollectionTargetRequest) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    errors: list[dict[str, Any]] = []
+    warnings: list[dict[str, Any]] = []
+    parsed = urlparse(payload.target_url)
+    host = (parsed.hostname or "").lower().replace("www.", "")
+    metadata = payload.metadata_json or {}
+
+    if parsed.scheme not in {"http", "https"} or not host:
+        errors.append(
+            {
+                "target_url": payload.target_url,
+                "source_name": payload.source_name,
+                "message": "target_url must be a valid http(s) URL",
+            }
+        )
+        return errors, warnings
+
+    expected_hosts = _expected_hosts_for_source(payload.source_name)
+    if expected_hosts and not any(host == expected or host.endswith(f".{expected}") for expected in expected_hosts):
+        errors.append(
+            {
+                "target_url": payload.target_url,
+                "source_name": payload.source_name,
+                "message": f"source_name is incompatible with URL host {host}",
+                "expected_hosts": expected_hosts,
+            }
+        )
+
+    if payload.active:
+        for key in ("owner", "category", "product_seed"):
+            if not metadata.get(key):
+                warnings.append(
+                    {
+                        "target_url": payload.target_url,
+                        "source_name": payload.source_name,
+                        "message": f"active target metadata is missing '{key}'",
+                    }
+                )
+
+    if metadata.get("kind") == "production_target" and not payload.active:
+        warnings.append(
+            {
+                "target_url": payload.target_url,
+                "source_name": payload.source_name,
+                "message": "inactive target is marked as production_target",
+            }
+        )
+
+    if metadata.get("kind") == "candidate_target" and payload.active:
+        warnings.append(
+            {
+                "target_url": payload.target_url,
+                "source_name": payload.source_name,
+                "message": "active target is marked as candidate_target",
+            }
+        )
+
+    return errors, warnings
+
+
+def _expected_hosts_for_source(source_name: str) -> list[str]:
+    mapping = {
+        "amazon": ["amazon.com.br", "amazon.com", "amzn.to"],
+        "drogasil": ["drogasil.com.br"],
+        "drogaraia": ["drogaraia.com.br"],
+        "paguemenos": ["paguemenos.com.br"],
+        "mercadolivre": ["mercadolivre.com.br", "produto.mercadolivre.com.br", "mercadolibre.com"],
+        "kabum": ["kabum.com.br"],
+        "magalu": ["magazineluiza.com.br", "magalu.com"],
+        "nissei": ["farmaciasnissei.com.br"],
+        "ultrafarma": ["ultrafarma.com.br"],
+        "drogariaspacheco": ["drogariaspacheco.com.br"],
+        "drogariasaopaulo": ["drogariasaopaulo.com.br"],
+        "consultaremedios": ["consultaremedios.com.br"],
+        "farma22": ["farma22.com.br"],
+        "panvel": ["panvel.com"],
+    }
+    return mapping.get(source_name.lower(), [])
 
 
 def _freshness_entry(

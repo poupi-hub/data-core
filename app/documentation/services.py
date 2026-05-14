@@ -763,6 +763,9 @@ def _pipeline_modules() -> list[str]:
 def _source_sla_defaults() -> list[dict[str, str]]:
     return [
         {"module": "ecommerce", "source_name": "drogasil", "freshness_sla": "daily", "quality_sla": "0.95"},
+        {"module": "ecommerce", "source_name": "drogaraia", "freshness_sla": "daily", "quality_sla": "0.95"},
+        {"module": "ecommerce", "source_name": "paguemenos", "freshness_sla": "daily", "quality_sla": "0.95"},
+        {"module": "ecommerce", "source_name": "mercadolivre", "freshness_sla": "daily", "quality_sla": "0.95"},
         {"module": "ecommerce", "source_name": "poupi_legacy", "freshness_sla": "daily", "quality_sla": "0.95"},
         {"module": "ecommerce", "source_name": "generic_marketplace", "freshness_sla": "daily", "quality_sla": "0.95"},
         {"module": "real_estate", "source_name": "generic_real_estate", "freshness_sla": "daily", "quality_sla": "0.90"},

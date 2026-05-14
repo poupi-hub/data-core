@@ -1,0 +1,146 @@
+{
+  "targets": [
+    {
+      "module": "ecommerce",
+      "source_name": "drogasil",
+      "collector_name": "poupi_legacy_raw_collector",
+      "target_url": "https://www.drogasil.com.br/fralda-pampers-confort-sec-xxxg-44-unidades-pampers-1351898.html",
+      "active": true,
+      "metadata_json": {
+        "kind": "production_target",
+        "owner": "data-platform",
+        "category": "baby",
+        "priority": "normal",
+        "product_seed": "pampers_confort_sec_xxxg_44"
+      }
+    },
+    {
+      "module": "ecommerce",
+      "source_name": "drogasil",
+      "collector_name": "poupi_legacy_raw_collector",
+      "target_url": "https://www.drogasil.com.br/pampers-fralda-descartavel-confort-sec-pacote-max-xg-com-92-unidades-1250294.html?origin=search",
+      "active": true,
+      "metadata_json": {
+        "kind": "production_target",
+        "owner": "data-platform",
+        "category": "baby",
+        "priority": "normal",
+        "product_seed": "pampers_confort_sec_xg_92"
+      }
+    },
+    {
+      "module": "ecommerce",
+      "source_name": "drogasil",
+      "collector_name": "poupi_legacy_raw_collector",
+      "target_url": "https://www.drogasil.com.br/fralda-pampers-confort-sec-xg-92-unidades-1474816.html",
+      "active": true,
+      "metadata_json": {
+        "kind": "production_target",
+        "owner": "data-platform",
+        "category": "baby",
+        "priority": "normal",
+        "product_seed": "pampers_confort_sec_xg_92_marketplace"
+      }
+    },
+    {
+      "module": "ecommerce",
+      "source_name": "drogaraia",
+      "collector_name": "poupi_legacy_raw_collector",
+      "target_url": "https://www.drogaraia.com.br/fralda-pampers-confort-sec-xxxg-44-unidades-pampers-1351898.html",
+      "active": true,
+      "metadata_json": {
+        "kind": "production_target",
+        "owner": "data-platform",
+        "category": "baby",
+        "priority": "normal",
+        "product_seed": "pampers_confort_sec_xxxg_44"
+      }
+    },
+    {
+      "module": "ecommerce",
+      "source_name": "drogaraia",
+      "collector_name": "poupi_legacy_raw_collector",
+      "target_url": "https://www.drogaraia.com.br/pampers-premium-care-fralda-pants-tamanho-g-com-112-unidades.html",
+      "active": false,
+      "metadata_json": {
+        "kind": "candidate_target",
+        "owner": "data-platform",
+        "category": "baby",
+        "priority": "normal",
+        "product_seed": "pampers_premium_care_pants_g_112",
+        "inactive_reason": "legacy scraper collected RAW but returned no normalizable product"
+      }
+    },
+    {
+      "module": "ecommerce",
+      "source_name": "drogaraia",
+      "collector_name": "poupi_legacy_raw_collector",
+      "target_url": "https://www.drogaraia.com.br/pampers-premium-care-tamanho-grande-com-30-tiras.html",
+      "active": true,
+      "metadata_json": {
+        "kind": "production_target",
+        "owner": "data-platform",
+        "category": "baby",
+        "priority": "normal",
+        "product_seed": "pampers_premium_care_g_30"
+      }
+    },
+    {
+      "module": "ecommerce",
+      "source_name": "paguemenos",
+      "collector_name": "poupi_legacy_raw_collector",
+      "target_url": "https://www.paguemenos.com.br/fralda-descartavel-infantil-pampers-confort-sec-xxxg-mais-de-19kg-pacote-44-unidades-leve-mais-pague-menos/p",
+      "active": true,
+      "metadata_json": {
+        "kind": "production_target",
+        "owner": "data-platform",
+        "category": "baby",
+        "priority": "normal",
+        "product_seed": "pampers_confort_sec_xxxg_44"
+      }
+    },
+    {
+      "module": "ecommerce",
+      "source_name": "paguemenos",
+      "collector_name": "poupi_legacy_raw_collector",
+      "target_url": "https://www.paguemenos.com.br/fralda-pampers-pants-premium-care-m-78-unidades/p?idsku=54680",
+      "active": true,
+      "metadata_json": {
+        "kind": "production_target",
+        "owner": "data-platform",
+        "category": "baby",
+        "priority": "normal",
+        "product_seed": "pampers_premium_care_pants_m_78"
+      }
+    },
+    {
+      "module": "ecommerce",
+      "source_name": "paguemenos",
+      "collector_name": "poupi_legacy_raw_collector",
+      "target_url": "https://www.paguemenos.com.br/fraldas-pampers-premium-care-p-40-unidades/p",
+      "active": true,
+      "metadata_json": {
+        "kind": "production_target",
+        "owner": "data-platform",
+        "category": "baby",
+        "priority": "normal",
+        "product_seed": "pampers_premium_care_p_40"
+      }
+    },
+    {
+      "module": "ecommerce",
+      "source_name": "mercadolivre",
+      "collector_name": "poupi_legacy_raw_collector",
+      "target_url": "https://www.mercadolivre.com.br/fralda-pampers-confort-sec-xxxg-com-44un/p/MLB35369029",
+      "active": false,
+      "metadata_json": {
+        "kind": "candidate_target",
+        "owner": "data-platform",
+        "category": "baby",
+        "priority": "normal",
+        "product_seed": "pampers_confort_sec_xxxg_44",
+        "inactive_reason": "legacy scraper currently returns no normalizable product for Mercado Livre without API access"
+      }
+    }
+  ]
+}
