@@ -390,6 +390,7 @@ def _collection_coverage_payload(
                 "normalized_count": 0,
                 "analytics_count": 0,
                 "blocked_target_count": 0,
+                "blocked_active_target_count": 0,
                 "issues": [],
             },
         )
@@ -400,8 +401,11 @@ def _collection_coverage_payload(
         source["raw_count"] += row["raw_count"]
         source["normalized_count"] += row["normalized_count"]
         source["analytics_count"] += row["analytics_count"]
-        if row["status"] in {"blocked", "candidate"}:
+        if row["status"] == "blocked":
             source["blocked_target_count"] += 1
+            source["blocked_active_target_count"] += 1
+            source["issues"].extend(row["issues"])
+        elif row["status"] == "candidate":
             source["issues"].extend(row["issues"])
 
     active_rows = [row for row in rows if row["target"]["active"]]

@@ -78,6 +78,16 @@ DEFAULT_COLLECTION_TARGETS = [
 
 
 def run_module_collectors_job(module: str, source: str | None = None) -> None:
+    if module == "ecommerce":
+        result = run_collection_targets_job(
+            module="ecommerce",
+            source=source,
+            collector_name="poupi_legacy_raw_collector",
+        )
+        if result["targets"] > 0:
+            logger.info("Ecommerce target collection finished", extra=result)
+            return
+
     collectors = MODULE_COLLECTORS.get(module, [])
     if source:
         selected = SOURCE_COLLECTORS.get(source)

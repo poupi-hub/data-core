@@ -75,6 +75,8 @@ Qualidade por fonte mostra:
 - taxa Normalized -> Analytics;
 - status `ok`, `attention` ou `standby`.
 
+Targets candidatos/inativos aparecem nos detalhes e nas taxas historicas, mas nao bloqueiam o status `ok` de uma fonte quando todos os targets ativos estao prontos.
+
 ## Exportar Relatorios
 
 ```powershell

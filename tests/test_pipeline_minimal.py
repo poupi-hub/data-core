@@ -14,7 +14,8 @@ from app.normalization.models import NormalizedProduct
 from app.raw.models import CollectorVersion, RawCollection
 from app.raw.service import RawCollectionService
 from database.models import CollectionRun, CollectionTarget, CollectorError, RunStatus
-from scheduler.jobs import run_collection_targets_job
+import scheduler.jobs as scheduler_jobs
+from scheduler.jobs import run_collection_targets_job, run_module_collectors_job
 
 
 @pytest.fixture(autouse=True)
@@ -389,6 +390,89 @@ def test_source_quality_endpoint_reports_rates(db_session, api_client):
     assert payload["sources"][0]["health_status"] == "attention"
 
 
+def test_source_quality_keeps_candidate_targets_out_of_active_blockers(db_session, api_client):
+    source = f"pytest-quality-candidate-{uuid4()}"
+    active_url = f"https://example.test/active-{uuid4()}"
+    db_session.add(
+        DataSla(
+            module="ecommerce",
+            source_name=source,
+            freshness_sla="daily",
+            metadata_json={"pytest": True},
+        )
+    )
+    db_session.add_all(
+        [
+            CollectionTarget(
+                module="ecommerce",
+                source_name=source,
+                collector_name="poupi_legacy_raw_collector",
+                target_url=active_url,
+                active=True,
+                metadata_json={"pytest": True},
+            ),
+            CollectionTarget(
+                module="ecommerce",
+                source_name=source,
+                collector_name="poupi_legacy_raw_collector",
+                target_url=f"https://example.test/candidate-{uuid4()}",
+                active=False,
+                metadata_json={"inactive_reason": "pytest standby"},
+            ),
+        ]
+    )
+    raw = RawCollectionService(db_session).save_json(
+        module="ecommerce",
+        source_name=source,
+        collector_name="poupi_legacy_raw_collector",
+        raw_schema_name="scrapedProduct",
+        raw_json={"scrapedProduct": {"title": "Produto pronto", "price": 10}},
+        target_url=active_url,
+    )
+    raw.processing_status = "normalized"
+    product = NormalizedProduct(
+        raw_collection_id=raw.id,
+        title="Produto pronto",
+        price=Decimal("10.00"),
+        store_name=source,
+        collected_at=datetime.now(timezone.utc),
+        analytics_status="processed",
+        normalizer_name="pytest_normalizer",
+        normalizer_version="1.0.0",
+    )
+    db_session.add(product)
+    db_session.flush()
+    db_session.add(
+        ProductPriceAnalytics(
+            product_id=product.id,
+            avg_price_7d=Decimal("10.00"),
+            price_score=Decimal("1.0000"),
+        )
+    )
+    db_session.add(
+        CollectionRun(
+            module="ecommerce",
+            source_name=source,
+            collector_name="poupi_legacy_raw_collector",
+            status=RunStatus.success,
+            started_at=datetime.now(timezone.utc),
+            finished_at=datetime.now(timezone.utc),
+            raw_saved_count=1,
+        )
+    )
+    db_session.commit()
+
+    response = api_client.get(f"/api/v1/operations/source-quality?source_name={source}")
+
+    assert response.status_code == 200
+    source_quality = response.json()["sources"][0]
+    assert source_quality["active_target_count"] == 1
+    assert source_quality["candidate_target_count"] == 1
+    assert source_quality["blocked_target_count"] == 0
+    assert source_quality["blocked_active_target_count"] == 0
+    assert source_quality["health_status"] == "ok"
+
+
 def test_collector_error_resolution_endpoint(db_session, api_client):
     error = CollectorError(
         collector_name=f"pytest-collector-{uuid4()}",
@@ -544,6 +628,32 @@ def test_collection_target_runner_skips_locked_target(db_session):
     assert result["targets"] == 1
     assert result["skipped_locked"] == 1
     assert result["raw_saved_count"] == 0
+
+
+def test_ecommerce_module_job_uses_collection_targets_runner(db_session, monkeypatch):
+    source = f"pytest-module-job-{uuid4()}"
+    db_session.add(
+        CollectionTarget(
+            module="ecommerce",
+            source_name=source,
+            collector_name="poupi_legacy_raw_collector",
+            target_url=f"https://example.test/{uuid4()}",
+            active=True,
+            metadata_json={"pytest": True},
+        )
+    )
+    db_session.commit()
+    called = {"targets": 0}
+
+    def fake_run_poupi_targets(_db, targets):
+        called["targets"] = len(targets)
+        return len(targets)
+
+    monkeypatch.setattr(scheduler_jobs, "_run_poupi_legacy_targets", fake_run_poupi_targets)
+
+    run_module_collectors_job("ecommerce", source=source)
+
+    assert called["targets"] == 1
 
 
 def test_product_lineage_endpoint_returns_raw_and_analytics(db_session, api_client):
