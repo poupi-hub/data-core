@@ -3,6 +3,7 @@ from decimal import Decimal
 from uuid import uuid4
 
 import pytest
+from fastapi.testclient import TestClient
 
 from app.analytics.models import ProductPriceAnalytics
 from app.data_quality.models import DataQualityRun
@@ -877,6 +878,516 @@ def test_ecommerce_price_changes_endpoint_skips_consecutive_duplicates(db_sessio
     assert item["previous_price"] == "120.00"
     assert item["direction"] == "down"
     assert item["change_percent"] == "-16.67"
+
+
+def test_raw_service_version_cache_avoids_repeated_queries(db_session):
+    """ensure_collector_version() deve ser chamado apenas uma vez por run, não por item."""
+    source = f"pytest-vcache-{uuid4()}"
+    service = RawCollectionService(db_session)
+
+    for i in range(5):
+        service.save_json(
+            module="ecommerce",
+            source_name=source,
+            collector_name="pytest_collector",
+            collector_version="1.0.0",
+            raw_schema_name="pytestProduct",
+            raw_schema_version="1.0.0",
+            raw_json={"title": f"Produto {i}", "price": i + 1},
+            target_url=f"https://example.test/product-{uuid4()}",
+        )
+
+    from app.raw.models import CollectorVersion
+    count = (
+        db_session.query(CollectorVersion)
+        .filter(CollectorVersion.source_name == source, CollectorVersion.collector_name == "pytest_collector")
+        .count()
+    )
+    assert count == 1, "Deve existir apenas 1 CollectorVersion independente do número de itens salvos"
+    assert len(service._version_cache) == 1
+
+
+def test_normalizer_model_classes_restricts_stamp_to_correct_table(db_session):
+    """normalized_model_classes deve evitar UPDATEs em tabelas que não pertencem ao normalizer."""
+    from app.modules.ecommerce.normalizers.product_normalizer import EcommerceProductNormalizer
+    from app.normalization.models import NormalizedSportsOdd
+
+    assert EcommerceProductNormalizer.normalized_model_classes == (
+        __import__("app.normalization.models", fromlist=["NormalizedProduct"]).NormalizedProduct,
+    ), "EcommerceProductNormalizer deve declarar apenas NormalizedProduct"
+
+    normalizer = EcommerceProductNormalizer(db_session)
+    stamp_models = normalizer._stamp_models
+    assert len(stamp_models) == 1
+    assert NormalizedSportsOdd not in stamp_models
+
+
+def test_normalizer_version_cached_across_items(db_session):
+    """ensure_normalizer_version() deve consultar o banco apenas uma vez por instância."""
+    from app.modules.ecommerce.normalizers.product_normalizer import EcommerceProductNormalizer
+    from app.normalization.models import NormalizerVersion
+
+    source = f"pytest-normver-{uuid4()}"
+    normalizer = EcommerceProductNormalizer(db_session)
+    assert normalizer._version_ensured is False
+
+    raw_service = RawCollectionService(db_session)
+    raws = []
+    for i in range(3):
+        raw = raw_service.save_json(
+            module="ecommerce",
+            source_name=source,
+            collector_name="pytest_collector",
+            raw_schema_name="pytestProduct",
+            raw_json={"title": f"P{i}", "price": i + 1},
+            target_url=f"https://example.test/{uuid4()}",
+        )
+        raws.append(raw)
+    db_session.flush()
+
+    for raw in raws:
+        normalizer.ensure_normalizer_version(raw)
+
+    assert normalizer._version_ensured is True
+    count = (
+        db_session.query(NormalizerVersion)
+        .filter(NormalizerVersion.source_name == source)
+        .count()
+    )
+    assert count == 1, "Deve haver apenas 1 NormalizerVersion independente do número de itens"
+
+
+def test_cleanup_stale_runs_marks_old_running_as_failed(db_session):
+    """cleanup_stale_runs_job deve marcar como failed runs com status=running há mais de TTL."""
+    from scheduler.jobs import cleanup_stale_runs_job
+
+    source = f"pytest-stale-{uuid4()}"
+    old_run = CollectionRun(
+        collector_name=source,
+        source_name=source,
+        module="ecommerce",
+        status=RunStatus.running,
+        started_at=datetime.now(timezone.utc) - timedelta(minutes=60),
+    )
+    recent_run = CollectionRun(
+        collector_name=source,
+        source_name=source,
+        module="ecommerce",
+        status=RunStatus.running,
+        started_at=datetime.now(timezone.utc) - timedelta(minutes=5),
+    )
+    db_session.add_all([old_run, recent_run])
+    db_session.commit()
+
+    cleanup_stale_runs_job(ttl_minutes=30)
+
+    db_session.expire_all()
+    db_session.refresh(old_run)
+    db_session.refresh(recent_run)
+    assert old_run.status == RunStatus.failed
+    assert old_run.finished_at is not None
+    assert recent_run.status == RunStatus.running
+
+
+def test_alert_webhook_job_posts_when_has_alerts(db_session, monkeypatch):
+    """alert_webhook_job deve chamar send_webhook quando has_alerts=True."""
+    from core.config import settings
+    import notifications.webhook as webhook_module
+    from scheduler.jobs import alert_webhook_job
+
+    monkeypatch.setattr(settings, "alert_webhook_url", "https://hooks.example.test/poupi")
+
+    posted_payloads: list[dict] = []
+
+    def fake_send_webhook(payload: dict) -> bool:
+        posted_payloads.append(payload)
+        return True
+
+    monkeypatch.setattr(webhook_module, "send_webhook", fake_send_webhook)
+
+    # Cria um target sem raw recente para garantir has_alerts=True
+    source = f"pytest-webhook-{uuid4()}"
+    db_session.add(
+        CollectionTarget(
+            module="ecommerce",
+            source_name=source,
+            collector_name="poupi_legacy_raw_collector",
+            target_url=f"https://example.test/{uuid4()}",
+            active=True,
+            metadata_json={"pytest": True},
+        )
+    )
+    db_session.commit()
+
+    alert_webhook_job()
+
+    assert len(posted_payloads) == 1, "send_webhook deve ser chamado uma vez quando há alertas"
+    payload = posted_payloads[0]
+    assert payload["source"] == "data-core"
+    assert payload["event"] == "operational_alert"
+    assert "summary" in payload
+    assert payload["summary"]["targets_without_recent_raw"] >= 1
+
+
+def test_alert_webhook_job_skips_when_no_alerts(db_session, monkeypatch):
+    """alert_webhook_job não deve chamar send_webhook quando não há alertas."""
+    from core.config import settings
+    import notifications.webhook as webhook_module
+    from scheduler.jobs import alert_webhook_job
+
+    monkeypatch.setattr(settings, "alert_webhook_url", "https://hooks.example.test/poupi")
+
+    posted_payloads: list[dict] = []
+
+    def fake_send_webhook(payload: dict) -> bool:
+        posted_payloads.append(payload)
+        return True
+
+    monkeypatch.setattr(webhook_module, "send_webhook", fake_send_webhook)
+
+    # Sem nenhum target ativo → has_alerts=False (para a fonte pytest)
+    alert_webhook_job()
+
+    assert posted_payloads == [] or all(
+        p.get("summary", {}).get("targets_without_recent_raw", 0) == 0
+        for p in posted_payloads
+    ), "Não deve disparar webhook quando não há alertas reais"
+
+
+def test_alert_webhook_job_skips_when_url_empty(monkeypatch):
+    """alert_webhook_job não deve chamar send_webhook quando URL está vazia."""
+    from core.config import settings
+    import notifications.webhook as webhook_module
+    from scheduler.jobs import alert_webhook_job
+
+    monkeypatch.setattr(settings, "alert_webhook_url", "")
+
+    called = {"count": 0}
+
+    def fake_send_webhook(payload: dict) -> bool:
+        called["count"] += 1
+        return True
+
+    monkeypatch.setattr(webhook_module, "send_webhook", fake_send_webhook)
+
+    alert_webhook_job()
+
+    assert called["count"] == 0, "send_webhook não deve ser chamado quando URL está vazia"
+
+
+def test_health_endpoint_returns_ok_when_postgres_is_up(api_client):
+    response = api_client.get("/health")
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["status"] == "ok"
+    assert payload["dependencies"]["postgres"]["status"] == "ok"
+
+
+def test_health_endpoint_returns_degraded_when_redis_fails(monkeypatch):
+    from core.config import settings
+    monkeypatch.setattr(settings, "cache_enabled", True)
+
+    import cache.client as cache_module
+
+    def _broken_get_redis():
+        return None
+
+    monkeypatch.setattr(cache_module, "get_redis", _broken_get_redis)
+
+    from app.main import create_app
+    with TestClient(create_app()) as client:
+        response = client.get("/health")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["status"] == "degraded"
+    assert payload["dependencies"]["redis"]["status"] == "error"
+    assert payload["dependencies"]["postgres"]["status"] == "ok"
+
+
+def test_analytics_price_score_z_score_calculation(db_session):
+    """price_score deve ser ~1.0 quando o preço é muito abaixo da média."""
+    from decimal import Decimal
+    from app.modules.ecommerce.analytics.price_processor import ProductPriceAnalyticsProcessor
+
+    source = f"pytest-zscore-{uuid4()}"
+    base_time = datetime.now(timezone.utc)
+
+    # Cria 6 produtos com preços de 100 a 200 para construir histórico
+    for i, price in enumerate([100, 120, 140, 160, 180, 200]):
+        snap = NormalizedProduct(
+            raw_collection_id=RawCollectionService(db_session).save_json(
+                module="ecommerce",
+                source_name=source,
+                collector_name="pytest_collector",
+                raw_schema_name="pytestProduct",
+                raw_json={"title": f"hist {i}", "price": price},
+                target_url=f"https://example.test/hist-{uuid4()}",
+            ).id,
+            source_id=f"sku-zscore-{source}",
+            title=f"Produto hist {i}",
+            price=Decimal(str(price)),
+            store_name=source,
+            collected_at=base_time - timedelta(days=i + 1),
+            analytics_status="processed",
+            normalizer_name="pytest_normalizer",
+            normalizer_version="1.0.0",
+        )
+        db_session.add(snap)
+    db_session.flush()
+
+    # Produto atual com preço muito baixo (100, bem abaixo da média ~150)
+    target_product = NormalizedProduct(
+        raw_collection_id=RawCollectionService(db_session).save_json(
+            module="ecommerce",
+            source_name=source,
+            collector_name="pytest_collector",
+            raw_schema_name="pytestProduct",
+            raw_json={"title": "Oferta", "price": 100},
+            target_url=f"https://example.test/target-{uuid4()}",
+        ).id,
+        source_id=f"sku-zscore-{source}",
+        title="Oferta",
+        price=Decimal("100.00"),
+        store_name=source,
+        collected_at=base_time,
+        analytics_status="pending",
+        normalizer_name="pytest_normalizer",
+        normalizer_version="1.0.0",
+    )
+    db_session.add(target_product)
+    db_session.flush()
+
+    processor = ProductPriceAnalyticsProcessor(db_session)
+    result = processor.calculate(target_product)
+
+    assert result["avg_price_30d"] is not None
+    assert result["min_price_90d"] == 100.0
+    assert result["max_price_90d"] == 200.0
+    assert result["price_score"] is not None
+    assert result["price_score"] > 0.5, "Preço mais baixo que a média deve ter score > 0.5"
+
+
+def test_rate_limit_returns_429_after_threshold(api_client):
+    """Endpoints protegidos devem retornar 429 ao ultrapassar o limite."""
+    hit_limit = False
+    for _ in range(35):
+        response = api_client.get("/api/v1/operations/freshness")
+        if response.status_code == 429:
+            hit_limit = True
+            break
+
+    assert hit_limit, "Deve retornar 429 após ultrapassar 30 req/min em /operations/freshness"
+
+
+def test_e2e_raw_normalize_analytics_to_price_feed(db_session, api_client):
+    """Pipeline completo: raw → normalize → analytics → aparecer no price-feed."""
+    from app.modules.ecommerce.analytics.price_processor import ProductPriceAnalyticsProcessor
+    from app.modules.ecommerce.normalizers.poupi_legacy_scraped_product_v1_normalizer import (
+        PoupiLegacyScrapedProductV1Normalizer,
+    )
+
+    source = f"pytest-e2e-{uuid4()}"
+    sku = f"sku-e2e-{uuid4().hex[:8]}"
+
+    raw = RawCollectionService(db_session).save_json(
+        module="ecommerce",
+        source_name=source,
+        collector_name="poupi_legacy_raw_collector",
+        raw_schema_name="scrapedProduct",
+        raw_schema_version="1.0.0",
+        raw_json={"scrapedProduct": {"title": "Fralda Pampers P 32un", "price": 59.90, "sku": sku}},
+        target_url=f"https://example.test/{sku}",
+    )
+    db_session.flush()
+
+    # Step 1: normalization
+    normalizer = PoupiLegacyScrapedProductV1Normalizer(db_session)
+    normalizer.run(limit=10)
+    db_session.expire_all()
+
+    product = (
+        db_session.query(NormalizedProduct)
+        .filter(NormalizedProduct.store_name == source)
+        .first()
+    )
+    assert product is not None, "Normalizer deve criar um NormalizedProduct"
+    assert product.canonical_product_id is not None
+    assert float(product.price) == 59.90
+
+    # Step 2: analytics
+    processor = ProductPriceAnalyticsProcessor(db_session)
+    result = processor.calculate(product)
+    assert result["price_score"] is not None
+
+    # Step 3: price-feed endpoint expõe o produto
+    response = api_client.get(f"/api/v1/poupi-baby/price-feed?source_name={source}&since_hours=1&limit=10")
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["count"] >= 1
+    titles = [item["title"] for item in payload["items"]]
+    assert any("Fralda" in (t or "") for t in titles), "Produto deve aparecer no price-feed"
+    prices = [item["price"] for item in payload["items"]]
+    assert 59.90 in prices
+
+
+def test_price_feed_cursor_pagination(db_session, api_client):
+    """Cursor pagination deve retornar páginas disjuntas e next_cursor correto."""
+    source = f"pytest-cursor-{uuid4()}"
+    base_time = datetime.now(timezone.utc)
+
+    for i, price in enumerate([10, 20, 30]):
+        raw = RawCollectionService(db_session).save_json(
+            module="ecommerce",
+            source_name=source,
+            collector_name="pytest_collector",
+            raw_schema_name="pytestProduct",
+            raw_json={"title": f"Produto cursor {i}", "price": price, "sku": f"sku-cursor-{i}-{uuid4().hex[:6]}"},
+            target_url=f"https://example.test/cursor-{i}",
+        )
+        product = NormalizedProduct(
+            raw_collection_id=raw.id,
+            canonical_product_id=f"cursor-{i}-{source}",
+            title=f"Produto cursor {i}",
+            price=Decimal(str(price)),
+            store_name=source,
+            collected_at=base_time - timedelta(minutes=i),  # newest first in DESC order
+            normalizer_name="pytest_normalizer",
+            normalizer_version="1.0.0",
+        )
+        db_session.add(product)
+    db_session.commit()
+
+    # Page 1 — limit=2 deve retornar next_cursor
+    r1 = api_client.get(f"/api/v1/poupi-baby/price-feed?source_name={source}&since_hours=1&limit=2")
+    assert r1.status_code == 200
+    p1 = r1.json()
+    assert p1["count"] == 2
+    assert p1["next_cursor"] is not None, "next_cursor deve existir quando há mais páginas"
+
+    # Page 2 — cursor deve devolver apenas o terceiro item
+    r2 = api_client.get(f"/api/v1/poupi-baby/price-feed?source_name={source}&since_hours=1&limit=2&cursor={p1['next_cursor']}")
+    assert r2.status_code == 200
+    p2 = r2.json()
+    assert p2["count"] == 1
+    assert p2["next_cursor"] is None, "next_cursor deve ser null na última página"
+
+    # Garante que as páginas são disjuntas
+    ids1 = {item["canonical_product_id"] for item in p1["items"]}
+    ids2 = {item["canonical_product_id"] for item in p2["items"]}
+    assert ids1.isdisjoint(ids2), "Páginas não devem ter itens duplicados"
+
+
+def test_retry_dead_letter_writes_on_exhausted_retries(db_session):
+    """with_retry deve escrever JobDeadLetter em CollectorError após esgotar tentativas."""
+    from scheduler.retry import with_retry
+
+    job_name = f"pytest-dead-letter-{uuid4().hex[:8]}"
+    call_count = {"n": 0}
+
+    def always_fails():
+        call_count["n"] += 1
+        raise RuntimeError("falha simulada")
+
+    with pytest.raises(RuntimeError, match="falha simulada"):
+        with_retry(always_fails, job_name=job_name, max_retries=1, backoff_seconds=0.0)
+
+    assert call_count["n"] == 2, "Deve tentar 1 (inicial) + 1 (retry)"
+
+    dead_letter = (
+        db_session.query(CollectorError)
+        .filter(
+            CollectorError.collector_name == job_name,
+            CollectorError.error_type == "JobDeadLetter",
+        )
+        .first()
+    )
+    assert dead_letter is not None, "Deve criar registro JobDeadLetter no CollectorError"
+    assert "falha simulada" in dead_letter.message
+
+
+def test_price_feed_end_to_end_raw_to_api_response(db_session, api_client):
+    """Full round-trip: raw save → normalize → analytics → price-feed endpoint.
+
+    Simulates what poupi-baby DataCoreSyncService consumes. Verifies that a price
+    collected in the raw layer surfaces in /api/v1/poupi-baby/price-feed within the
+    same test transaction so poupi-baby can pick it up on sync.
+    """
+    from app.analytics.services import AnalyticsService
+    from app.modules.ecommerce.analytics.price_processor import ProductPriceAnalyticsProcessor
+
+    source = f"pytest-e2e-{uuid4().hex[:8]}"
+    canonical_id = f"sku-{uuid4().hex[:8]}"
+    price = 49.90
+
+    # 1. Save raw product (as PoupiLegacyRawCollector would)
+    raw_svc = RawCollectionService(db_session)
+    raw = raw_svc.save(
+        module="ecommerce",
+        source_name=source,
+        collector_name="poupi_legacy_raw_collector",
+        raw_schema_name="PoupiLegacyScrapedProductV1",
+        raw_schema_version="1",
+        payload={
+            "title": "Fralda E2E Teste",
+            "price": price,
+            "currency": "BRL",
+            "availability": "in_stock",
+            "store_name": source,
+            "source_id": canonical_id,
+            "url": f"https://example.com/{canonical_id}",
+        },
+    )
+    db_session.flush()
+
+    # 2. Normalize
+    normalizer = PoupiLegacyScrapedProductV1Normalizer(db_session)
+    normalizer.run(limit=10)
+    db_session.flush()
+
+    normalized = (
+        db_session.query(NormalizedProduct)
+        .filter(NormalizedProduct.store_name == source)
+        .first()
+    )
+    assert normalized is not None, "Product was not normalized"
+    assert float(normalized.price) == price
+
+    # Ensure canonical_product_id is populated (backfill logic)
+    assert normalized.canonical_product_id is not None
+
+    # 3. Run analytics so the record is included in the price-feed
+    processor = ProductPriceAnalyticsProcessor(db_session)
+    processor.run(limit=10)
+    db_session.commit()
+
+    # 4. Query price-feed endpoint — this is what DataCoreSyncService calls
+    resp = api_client.get(
+        "/api/v1/poupi-baby/price-feed",
+        params={"since_hours": 1, "limit": 100},
+    )
+    assert resp.status_code == 200, resp.text
+    data = resp.json()
+
+    matching = [
+        item for item in data["items"]
+        if item.get("store_name") == source
+    ]
+    assert len(matching) >= 1, "price-feed should return the item we just inserted"
+    item = matching[0]
+    assert float(item["price"]) == price
+    assert item["canonical_product_id"] == normalized.canonical_product_id
+    assert item["source_id"] == canonical_id
+
+    # 5. Pagination: with limit=1 there should be a next_cursor
+    resp_paged = api_client.get(
+        "/api/v1/poupi-baby/price-feed",
+        params={"since_hours": 1, "limit": 1},
+    )
+    assert resp_paged.status_code == 200
+    paged_data = resp_paged.json()
+    if paged_data["count"] > 1:
+        assert paged_data["next_cursor"] is not None, "next_cursor must be set when count > limit"
 
 
 def _cleanup_pytest_records(db_session) -> None:

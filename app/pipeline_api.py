@@ -5,12 +5,13 @@ from typing import Any
 from urllib.parse import urlparse
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from pydantic import BaseModel
 from sqlalchemy import desc, func
 from sqlalchemy.orm import Session
 
 from api.deps import db_session
+from cache import cache_get, cache_set
 from app.analytics.models import (
     CryptoAnalytics,
     ProductPriceAnalytics,
@@ -40,6 +41,8 @@ from scheduler.jobs import (
     run_collection_target_by_id,
     run_collection_targets_job,
 )
+
+from api.rate_limit import limiter
 
 router = APIRouter(prefix="/api/v1", tags=["pipeline"])
 
@@ -244,7 +247,12 @@ def collection_target_status(target_id: UUID, db: Session = Depends(db_session))
 
 
 @router.get("/operations/collection-readiness")
-def collection_readiness(db: Session = Depends(db_session)) -> dict[str, Any]:
+@limiter.limit("30/minute")
+def collection_readiness(request: Request, db: Session = Depends(db_session)) -> dict[str, Any]:
+    cached = cache_get("ops:readiness")
+    if cached is not None:
+        return cached
+
     targets = (
         db.query(CollectionTarget)
         .filter(CollectionTarget.active.is_(True))
@@ -269,7 +277,7 @@ def collection_readiness(db: Session = Depends(db_session)) -> dict[str, Any]:
         and sum(analytics_pending.values()) == 0
         and unresolved_errors == 0
     )
-    return {
+    result = {
         "ready": ready,
         "target_count": len(targets),
         "ready_target_count": len(targets) - len(blocking_targets),
@@ -280,6 +288,8 @@ def collection_readiness(db: Session = Depends(db_session)) -> dict[str, Any]:
         "unresolved_collector_errors": unresolved_errors,
         "targets": target_statuses,
     }
+    cache_set("ops:readiness", result, ttl_seconds=120)
+    return result
 
 
 @router.get("/operations/collection-coverage")
@@ -705,6 +715,66 @@ def run_pipeline_once(
     }
 
 
+@router.post("/operations/sources/{module}/{source_name}/circuit/open")
+def open_circuit_breaker(module: str, source_name: str) -> dict[str, Any]:
+    """Manually open the circuit for a source (deactivate all its targets)."""
+    from scheduler.circuit_breaker import CIRCUIT_OPEN_ERROR_TYPE
+    from database.session import SessionLocal as _SL
+
+    db = _SL()
+    try:
+        targets = (
+            db.query(CollectionTarget)
+            .filter(
+                CollectionTarget.module == module,
+                CollectionTarget.source_name == source_name,
+                CollectionTarget.active.is_(True),
+            )
+            .all()
+        )
+        for t in targets:
+            t.active = False
+        db.add(CollectorError(
+            collector_name=source_name,
+            error_type=CIRCUIT_OPEN_ERROR_TYPE,
+            message=f"Circuit manually opened for module={module} source={source_name}.",
+            context={"module": module, "source_name": source_name, "manual": True, "deactivated_targets": len(targets)},
+        ))
+        db.commit()
+        return {"status": "circuit_opened", "module": module, "source_name": source_name, "deactivated_targets": len(targets)}
+    finally:
+        db.close()
+
+
+@router.post("/operations/sources/{module}/{source_name}/circuit/reopen")
+def reopen_circuit_breaker(module: str, source_name: str) -> dict[str, Any]:
+    """Reopen the circuit for a source (reactivate targets, resolve circuit errors)."""
+    from scheduler.circuit_breaker import reopen_source_circuit
+    from database.session import SessionLocal as _SL
+
+    db = _SL()
+    try:
+        reactivated = reopen_source_circuit(db, module=module, source_name=source_name)
+        return {"status": "circuit_reopened", "module": module, "source_name": source_name, "reactivated_targets": reactivated}
+    finally:
+        db.close()
+
+
+@router.post("/operations/pipeline/backfill-canonical-ids")
+def backfill_canonical_ids(
+    batch_size: int = Query(default=500, ge=100, le=5000),
+) -> dict[str, Any]:
+    """Backfill canonical_product_id for NormalizedProduct rows that still have NULL.
+
+    Safe to call multiple times. Uses source_id when available, otherwise a title slug.
+    Returns counts of rows updated by each strategy.
+    """
+    from scheduler.jobs import backfill_canonical_product_id_job
+
+    result = backfill_canonical_product_id_job(batch_size=batch_size)
+    return {"status": "ok", **result}
+
+
 @router.get("/sources/{module}/{source_name}/status")
 def source_status(module: str, source_name: str, db: Session = Depends(db_session)) -> dict[str, Any]:
     module = _canonical_module(module) or module
@@ -1020,15 +1090,14 @@ def operations_summary(db: Session = Depends(db_session)) -> dict[str, Any]:
     }
 
 
-@router.get("/operations/alerts")
-def operations_alerts(
-    db: Session = Depends(db_session),
-    module: str | None = None,
-    source_name: str | None = None,
-    raw_freshness_hours: int = Query(default=24, ge=1, le=720),
-    raw_pending_minutes: int = Query(default=60, ge=1, le=10080),
-    analytics_pending_minutes: int = Query(default=120, ge=1, le=10080),
-    limit: int = Query(default=50, ge=1, le=500),
+def _build_alerts_payload(
+    db,
+    module: str | None,
+    source_name: str | None,
+    raw_freshness_hours: int,
+    raw_pending_minutes: int,
+    analytics_pending_minutes: int,
+    limit: int,
 ) -> dict[str, Any]:
     now = datetime.now(timezone.utc)
     stale_raw_cutoff = now - timedelta(hours=raw_freshness_hours)
@@ -1096,7 +1165,7 @@ def operations_alerts(
     if source_name:
         collector_errors_query = collector_errors_query.filter(CollectorError.context["source_name"].astext == source_name)
 
-    payload = {
+    payload: dict[str, Any] = {
         "generated_at": now,
         "thresholds": {
             "raw_freshness_hours": raw_freshness_hours,
@@ -1124,6 +1193,35 @@ def operations_alerts(
         if isinstance(value, list)
     }
     payload["has_alerts"] = any(payload["summary"].values())
+    return payload
+
+
+@router.get("/operations/alerts")
+@limiter.limit("20/minute")
+def operations_alerts(
+    request: Request,
+    db: Session = Depends(db_session),
+    module: str | None = None,
+    source_name: str | None = None,
+    raw_freshness_hours: int = Query(default=24, ge=1, le=720),
+    raw_pending_minutes: int = Query(default=60, ge=1, le=10080),
+    analytics_pending_minutes: int = Query(default=120, ge=1, le=10080),
+    limit: int = Query(default=50, ge=1, le=500),
+) -> dict[str, Any]:
+    cache_key = f"ops:alerts:{module or 'all'}:{source_name or 'all'}:{raw_freshness_hours}:{raw_pending_minutes}:{analytics_pending_minutes}:{limit}"
+    cached = cache_get(cache_key)
+    if cached is not None:
+        return cached
+    payload = _build_alerts_payload(
+        db=db,
+        module=module,
+        source_name=source_name,
+        raw_freshness_hours=raw_freshness_hours,
+        raw_pending_minutes=raw_pending_minutes,
+        analytics_pending_minutes=analytics_pending_minutes,
+        limit=limit,
+    )
+    cache_set(cache_key, payload, ttl_seconds=120)
     return payload
 
 
@@ -1214,11 +1312,18 @@ def resolve_collector_error(
 
 
 @router.get("/operations/freshness")
+@limiter.limit("30/minute")
 def operations_freshness(
+    request: Request,
     db: Session = Depends(db_session),
     module: str | None = None,
     include_tests: bool = False,
 ) -> dict[str, Any]:
+    cache_key = f"ops:freshness:{module or 'all'}:{include_tests}"
+    cached = cache_get(cache_key)
+    if cached is not None:
+        return cached
+
     DocumentationService(db).ensure_governance_defaults()
     db.commit()
     latest_query = db.query(
@@ -1313,7 +1418,7 @@ def operations_freshness(
 
     status_order = {"violated": 0, "warning": 1, "missing_data": 2, "unknown_sla": 3, "ok": 4}
     entries.sort(key=lambda item: (status_order.get(item["status"], 9), item["module"], item["source_name"] or ""))
-    return {
+    result = {
         "generated_at": now,
         "items": entries,
         "summary": {
@@ -1321,6 +1426,8 @@ def operations_freshness(
             for status in ["ok", "warning", "violated", "missing_data", "unknown_sla"]
         },
     }
+    cache_set(cache_key, result, ttl_seconds=120)
+    return result
 
 
 @router.get("/lineage/products/{product_id}")

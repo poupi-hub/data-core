@@ -1,12 +1,17 @@
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from fastapi import Depends, FastAPI
+from prometheus_fastapi_instrumentator import Instrumentator
+from slowapi import _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
 from sqlalchemy import text
 
+from api.auth import verify_api_key
+from api.rate_limit import limiter
 from api.routes import router as api_router
 from api.poupi_baby_routes import router as poupi_baby_router
-from api.schemas import HealthResponse
+from api.schemas import DependencyStatus, HealthResponse
 from app.analytics import models as analytics_models
 from app.data_quality import models as data_quality_models
 from app.data_quality.api import router as data_quality_router
@@ -59,18 +64,47 @@ def create_app() -> FastAPI:
         version="0.1.0",
         lifespan=lifespan,
     )
+    app.state.limiter = limiter
+    app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
     @app.get("/health", response_model=HealthResponse)
     def health() -> HealthResponse:
-        with SessionLocal() as db:
-            db.execute(text("SELECT 1"))
-        return HealthResponse(status="ok", app=settings.app_name, environment=settings.app_env)
+        from cache.client import get_redis
 
-    app.include_router(api_router)
-    app.include_router(poupi_baby_router)
-    app.include_router(pipeline_router)
-    app.include_router(documentation_router)
-    app.include_router(data_quality_router)
-    app.include_router(real_estate_router)
-    app.include_router(sports_odds_router)
+        deps: dict[str, DependencyStatus] = {}
+
+        try:
+            with SessionLocal() as db:
+                db.execute(text("SELECT 1"))
+            deps["postgres"] = DependencyStatus(status="ok")
+        except Exception as exc:
+            deps["postgres"] = DependencyStatus(status="error", detail=str(exc))
+
+        if settings.cache_enabled:
+            try:
+                client = get_redis()
+                if client is None:
+                    raise RuntimeError("Redis client unavailable")
+                client.ping()
+                deps["redis"] = DependencyStatus(status="ok")
+            except Exception as exc:
+                deps["redis"] = DependencyStatus(status="error", detail=str(exc))
+
+        overall = "ok" if all(d.status == "ok" for d in deps.values()) else "degraded"
+        return HealthResponse(
+            status=overall,
+            app=settings.app_name,
+            environment=settings.app_env,
+            dependencies=deps,
+        )
+
+    auth_dep = [Depends(verify_api_key)]
+    app.include_router(api_router, dependencies=auth_dep)
+    app.include_router(poupi_baby_router, dependencies=auth_dep)
+    app.include_router(pipeline_router, dependencies=auth_dep)
+    app.include_router(documentation_router, dependencies=auth_dep)
+    app.include_router(data_quality_router, dependencies=auth_dep)
+    app.include_router(real_estate_router, dependencies=auth_dep)
+    app.include_router(sports_odds_router, dependencies=auth_dep)
+    Instrumentator().instrument(app).expose(app, endpoint="/metrics", include_in_schema=False)
     return app

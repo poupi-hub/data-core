@@ -31,6 +31,22 @@ class NormalizationResult:
     elapsed_seconds: float
 
 
+_ALL_NORMALIZED_MODELS = None  # populated lazily to avoid import-time circular deps
+
+
+def _all_normalized_models() -> tuple[type, ...]:
+    global _ALL_NORMALIZED_MODELS
+    if _ALL_NORMALIZED_MODELS is None:
+        _ALL_NORMALIZED_MODELS = (
+            NormalizedProduct,
+            NormalizedRealEstateListing,
+            NormalizedCryptoSnapshot,
+            NormalizedMarketCandle,
+            NormalizedSportsOdd,
+        )
+    return _ALL_NORMALIZED_MODELS
+
+
 class BaseNormalizer(ABC):
     module: str
     normalizer_name: str | None = None
@@ -38,10 +54,17 @@ class BaseNormalizer(ABC):
     supported_raw_schema_name: str | None = None
     supported_raw_schema_version: str | None = None
     supported_source_name: str | None = None
+    # Override in subclasses to restrict stamp/lineage queries to only the relevant model(s).
+    normalized_model_classes: tuple[type, ...] = ()
 
     def __init__(self, db: Session) -> None:
         self.db = db
         self.raw_repository = RawRepository(db)
+        self._version_ensured: bool = False
+
+    @property
+    def _stamp_models(self) -> tuple[type, ...]:
+        return self.normalized_model_classes or _all_normalized_models()
 
     @classmethod
     def supports_raw(
@@ -60,7 +83,14 @@ class BaseNormalizer(ABC):
         return True
 
     def load_raw(self, *, limit: int = 100) -> list[RawCollection]:
-        raws = self.raw_repository.pending_for_module(self.module, limit=limit)
+        raws = self.raw_repository.pending_for_module(
+            self.module,
+            limit=limit,
+            source_name=self.supported_source_name,
+            raw_schema_name=self.supported_raw_schema_name,
+            raw_schema_version=self.supported_raw_schema_version,
+        )
+        # Keep Python-level guard in case a subclass overrides supports_raw() with extra logic.
         return [
             raw
             for raw in raws
@@ -136,14 +166,7 @@ class BaseNormalizer(ABC):
 
     def stamp_normalized(self, raw: RawCollection) -> None:
         now = datetime.now(timezone.utc)
-        models = (
-            NormalizedProduct,
-            NormalizedRealEstateListing,
-            NormalizedCryptoSnapshot,
-            NormalizedMarketCandle,
-            NormalizedSportsOdd,
-        )
-        for model in models:
+        for model in self._stamp_models:
             self.db.query(model).filter(
                 model.raw_collection_id == raw.id,
                 model.normalizer_name.is_(None),
@@ -164,14 +187,7 @@ class BaseNormalizer(ABC):
 
     def record_lineage_for_normalized(self, raw: RawCollection) -> None:
         lineage = LineageService(self.db)
-        models = (
-            NormalizedProduct,
-            NormalizedRealEstateListing,
-            NormalizedCryptoSnapshot,
-            NormalizedMarketCandle,
-            NormalizedSportsOdd,
-        )
-        for model in models:
+        for model in self._stamp_models:
             rows = (
                 self.db.query(model)
                 .filter(
@@ -191,7 +207,9 @@ class BaseNormalizer(ABC):
                     metadata={"normalized_entity": model.__tablename__},
                 )
 
-    def ensure_normalizer_version(self, raw: RawCollection) -> NormalizerVersion:
+    def ensure_normalizer_version(self, raw: RawCollection) -> NormalizerVersion | None:
+        if self._version_ensured:
+            return None
         existing = (
             self.db.query(NormalizerVersion)
             .filter(
@@ -205,6 +223,7 @@ class BaseNormalizer(ABC):
             .one_or_none()
         )
         if existing:
+            self._version_ensured = True
             return existing
         version = NormalizerVersion(
             module=self.module,
@@ -216,4 +235,5 @@ class BaseNormalizer(ABC):
         )
         self.db.add(version)
         self.db.flush()
+        self._version_ensured = True
         return version

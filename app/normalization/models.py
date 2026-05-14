@@ -39,6 +39,13 @@ class NormalizedProduct(Base):
     source_collector_name: Mapped[str | None] = mapped_column(String(160), nullable=True, index=True)
     source_collector_version: Mapped[str | None] = mapped_column(String(40), nullable=True, index=True)
 
+    __table_args__ = (
+        Index("ix_normalized_products_canonical_collected", "canonical_product_id", "collected_at"),
+        Index("ix_normalized_products_source_id_collected", "source_id", "collected_at"),
+        Index("ix_normalized_products_store_name_collected", "store_name", "collected_at"),
+        Index("ix_normalized_products_analytics_status_collected", "analytics_status", "collected_at"),
+    )
+
 
 class NormalizedRealEstateListing(Base):
     __tablename__ = "normalized_real_estate_listings"

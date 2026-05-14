@@ -117,6 +117,25 @@ Alertas cobrem:
 - analytics pendente antigo;
 - erros de collector nao resolvidos.
 
+## Prometheus e Alertmanager
+
+O compose sobe Prometheus, Grafana e Alertmanager para alertas operacionais. O Alertmanager usa `alertmanager/alertmanager.yml` e envia webhooks para `http://host.docker.internal:9099/alerts` por padrao; ajuste esse destino antes de producao.
+
+Validacao local das regras:
+
+```powershell
+docker compose run --rm --no-deps --entrypoint promtool prometheus check config /etc/prometheus/prometheus.yml
+docker compose run --rm --no-deps --entrypoint amtool alertmanager check-config /etc/alertmanager/alertmanager.yml
+```
+
+Smoke test de entrega webhook, usando Alertmanager e receiver temporarios na rede Docker:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\smoke-alertmanager.ps1
+```
+
+Para ampliar coleta em producao, avance em lotes pequenos: primeiro `MaxTargets 1`, depois `5`, depois `10`, sempre com `DelaySeconds` e conferindo `operational-alerts.ps1` antes de aumentar.
+
 ## Avaliar Targets Candidatos
 
 ```powershell

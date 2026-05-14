@@ -4,6 +4,7 @@ from sqlalchemy.orm import Session
 
 from api.deps import db_session
 from api.schemas import CollectedRecordResponse, CollectorResponse, RunCollectorResponse
+from cache import cache_get, cache_invalidate, cache_set
 from collectors.registry import registry
 from database.models import CollectedRecord, CollectionRun
 from app.raw.models import CollectorVersion
@@ -14,6 +15,10 @@ router = APIRouter(prefix="/api/v1")
 
 @router.get("/collectors", response_model=list[CollectorResponse])
 def list_collectors(db: Session = Depends(db_session)) -> list[CollectorResponse]:
+    cached = cache_get("collectors:list")
+    if cached is not None:
+        return cached
+
     version_counts = {
         name: count
         for name, count in db.query(CollectorVersion.collector_name, func.count(CollectorVersion.id))
@@ -52,6 +57,7 @@ def list_collectors(db: Session = Depends(db_session)) -> list[CollectorResponse
             registered_versions=version_counts.get("poupi_legacy_raw_collector", 0),
         )
     )
+    cache_set("collectors:list", [r.model_dump() for r in responses], ttl_seconds=300)
     return responses
 
 
@@ -63,6 +69,7 @@ def list_collectors(db: Session = Depends(db_session)) -> list[CollectorResponse
 async def run_collector(collector_name: str, db: Session = Depends(db_session)) -> CollectionRun:
     if collector_name not in registry.names():
         raise HTTPException(status_code=404, detail="Collector not found")
+    cache_invalidate("collectors:*")
     return await run_collector_by_name(collector_name, db)
 
 

@@ -1,6 +1,8 @@
+import hashlib
+import re
+import unicodedata
 from datetime import datetime, timezone
 from decimal import Decimal, InvalidOperation
-import re
 from typing import Any
 
 from app.normalization.models import NormalizedProduct
@@ -12,6 +14,7 @@ class EcommerceProductNormalizer(BaseNormalizer):
     module = "ecommerce"
     normalizer_name = "generic_product_normalizer"
     normalizer_version = "1.0.0"
+    normalized_model_classes = (NormalizedProduct,)
 
     def normalize(self, raw: RawCollection) -> dict[str, Any] | None:
         if not isinstance(raw.raw_json, dict):
@@ -21,8 +24,11 @@ class EcommerceProductNormalizer(BaseNormalizer):
         if not isinstance(payload, dict):
             raw.error_message = "ignored_by_normalizer: product payload is not an object"
             return None
-        if payload.get("success") is False:
-            raw.error_message = f"ignored_by_normalizer: payload success=false: {payload.get('error') or 'unknown_error'}"
+        raw_success = raw.raw_json.get("success") if isinstance(raw.raw_json, dict) else None
+        payload_success = payload.get("success")
+        if raw_success is False or payload_success is False:
+            error = payload.get("error") or raw.raw_json.get("error") or "unknown_error"
+            raw.error_message = f"ignored_by_normalizer: payload success=false: {error}"
             return None
         title = _clean_text(
             payload.get("title")
@@ -41,10 +47,19 @@ class EcommerceProductNormalizer(BaseNormalizer):
             raw.error_message = "ignored_by_normalizer: missing title/name and parseable price"
             return None
         raw.error_message = None
+        source_id = raw.source_id or payload.get("source_id") or payload.get("sku") or payload.get("product_id")
+        canonical = (
+            payload.get("canonical_product_id")
+            or payload.get("ean")
+            or payload.get("upc")
+            or payload.get("gtin")
+            or source_id
+            or _title_slug(title)
+        )
         return {
-            "source_id": raw.source_id,
-            "external_id": payload.get("external_id") or raw.source_id or raw.target_url,
-            "canonical_product_id": payload.get("canonical_product_id"),
+            "source_id": source_id,
+            "external_id": payload.get("external_id") or source_id or raw.target_url,
+            "canonical_product_id": canonical,
             "title": title,
             "brand": _clean_text(payload.get("brand") or payload.get("manufacturer")),
             "price": price,
@@ -112,7 +127,13 @@ def _parse_decimal(value: object) -> Decimal | None:
     text = str(value).strip()
     if not text:
         return None
-    match = re.search(r"[-+]?\d[\d.\s]*,\d{1,2}|[-+]?\d+(?:\.\d{1,2})?", text)
+    match = re.search(
+        r"[-+]?\d{1,3}(?:[.\s]\d{3})+(?:,\d{1,2})?"
+        r"|[-+]?\d[\d\s]*,\d{1,2}"
+        r"|[-+]?\d+\.\d{1,2}"
+        r"|[-+]?\d+",
+        text,
+    )
     if match:
         text = match.group(0)
     text = text.replace("R$", "").replace("\xa0", "").replace(" ", "")
@@ -120,10 +141,28 @@ def _parse_decimal(value: object) -> Decimal | None:
         text = text.replace(".", "").replace(",", ".")
     elif "," in text:
         text = text.replace(",", ".")
+    elif "." in text:
+        parts = text.split(".")
+        if len(parts) > 1 and all(len(part) == 3 for part in parts[1:]):
+            text = text.replace(".", "")
     try:
         return Decimal(text)
     except (InvalidOperation, ValueError):
         return None
+
+
+def _title_slug(title: str | None) -> str | None:
+    """Generate a stable canonical ID from a product title when no SKU/barcode is available.
+
+    Normalizes unicode, lowercases, strips punctuation, then hashes to avoid
+    length issues. Prefix 'slug:' makes the origin clear in analytics queries.
+    """
+    if not title:
+        return None
+    normalized = unicodedata.normalize("NFKD", title).encode("ascii", "ignore").decode()
+    slug = re.sub(r"[^a-z0-9]+", "-", normalized.lower()).strip("-")
+    digest = hashlib.sha1(slug.encode()).hexdigest()[:12]
+    return f"slug:{slug[:60]}-{digest}"
 
 
 def _availability_text(payload: dict[str, Any]) -> str | None:

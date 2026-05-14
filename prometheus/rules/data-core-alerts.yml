@@ -1,0 +1,72 @@
+groups:
+  - name: data-core-operational-alerts
+    rules:
+      - alert: DataCorePriceFeedNoItemsServed
+        expr: (sum(increase(price_feed_items_served_total[30m])) or vector(0)) == 0
+        for: 15m
+        labels:
+          severity: warning
+          service: data-core
+        annotations:
+          summary: "Data Core price feed is not serving items"
+          description: "No price-feed items were served in the last 30 minutes. Check collection, normalization, and poupi-baby sync health."
+
+      - alert: DataCoreJobDeadLetterCreated
+        expr: job_dead_letters_unresolved > 0
+        for: 0m
+        labels:
+          severity: critical
+          service: data-core
+        annotations:
+          summary: "Data Core job exhausted retries"
+          description: "At least one scheduler job has an unresolved JobDeadLetter in collector_errors."
+
+      - alert: DataCoreCircuitBreakerOpen
+        expr: circuit_breaker_open_sources > 0
+        for: 0m
+        labels:
+          severity: critical
+          service: data-core
+        annotations:
+          summary: "Data Core circuit breaker is open for {{ $value }} source(s)"
+          description: "One or more collection sources have been auto-deactivated after consecutive failures. Check /api/v1/operations/collector-errors for details."
+
+      - alert: DataCoreCircuitBreakerSpike
+        expr: increase(circuit_breaker_opens_total[1h]) > 2
+        for: 0m
+        labels:
+          severity: warning
+          service: data-core
+        annotations:
+          summary: "Data Core circuit breakers opening frequently"
+          description: "More than 2 circuit breaker trips in the last hour for module={{ $labels.module }} source={{ $labels.source_name }}."
+
+      - alert: DataCorePriceFeedRequestsDrop
+        expr: (sum(increase(price_feed_requests_total[15m])) or vector(0)) == 0
+        for: 30m
+        labels:
+          severity: warning
+          service: data-core
+        annotations:
+          summary: "Data Core price-feed endpoint not receiving requests"
+          description: "No requests to /price-feed in the last 30 minutes. The poupi-baby sync may have stopped or lost connectivity."
+
+      - alert: DataCoreDeadLetterSpike
+        expr: increase(job_dead_letters_total[30m]) > 3
+        for: 0m
+        labels:
+          severity: warning
+          service: data-core
+        annotations:
+          summary: "Multiple dead-letter jobs in last 30 minutes ({{ $value }})"
+          description: "More than 3 scheduler jobs wrote dead letters in the last 30 minutes for job={{ $labels.job_name }}. Possible systemic failure."
+
+      - alert: DataCoreApiDown
+        expr: up{job="data-core-api"} == 0
+        for: 2m
+        labels:
+          severity: critical
+          service: data-core
+        annotations:
+          summary: "Data Core API is unreachable"
+          description: "Prometheus cannot scrape the data-core API metrics endpoint. The service may be down."

@@ -8,6 +8,7 @@ class SportsOddsNormalizer(BaseNormalizer):
     module = "sports_odds"
     normalizer_name = "generic_odds_normalizer"
     normalizer_version = "1.0.0"
+    normalized_model_classes = (NormalizedSportsOdd,)
 
     def __init__(self, db):
         super().__init__(db)

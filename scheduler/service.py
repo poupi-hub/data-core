@@ -6,7 +6,8 @@ from collectors.registry import registry
 from core.config import settings
 from app.modules.real_estate.scheduler import run_real_estate_daily_collection
 from app.modules.sports_odds.scheduler import run_sports_odds_recurring_collection
-from scheduler.jobs import analytics_job, collect_raw_job, normalize_job, run_poupi_legacy_targets_job
+from scheduler.jobs import alert_webhook_job, analytics_job, cleanup_stale_runs_job, collect_raw_job, data_retention_job, normalize_job, run_poupi_legacy_targets_job
+from scheduler.retry import with_retry
 
 logger = logging.getLogger(__name__)
 
@@ -28,9 +29,41 @@ def create_scheduler() -> BackgroundScheduler:
                 coalesce=True,
             )
 
+    scheduler.add_job(
+        cleanup_stale_runs_job,
+        "interval",
+        minutes=15,
+        id="maintenance:cleanup_stale_runs",
+        replace_existing=True,
+        max_instances=1,
+        coalesce=True,
+    )
+
+    scheduler.add_job(
+        lambda: with_retry(alert_webhook_job, job_name="alert_webhook_job"),
+        "interval",
+        hours=1,
+        id="maintenance:alert_webhook",
+        replace_existing=True,
+        max_instances=1,
+        coalesce=True,
+    )
+
+    scheduler.add_job(
+        data_retention_job,
+        "cron",
+        day_of_week="sun",
+        hour=2,
+        minute=0,
+        id="maintenance:data_retention",
+        replace_existing=True,
+        max_instances=1,
+        coalesce=True,
+    )
+
     if settings.scheduler_pipeline_enabled:
         scheduler.add_job(
-            normalize_job,
+            lambda: with_retry(normalize_job, job_name="normalize_job"),
             "interval",
             minutes=15,
             id="pipeline:normalize",
@@ -39,7 +72,7 @@ def create_scheduler() -> BackgroundScheduler:
             coalesce=True,
         )
         scheduler.add_job(
-            analytics_job,
+            lambda: with_retry(analytics_job, job_name="analytics_job"),
             "interval",
             minutes=60,
             id="pipeline:analytics",

@@ -30,9 +30,9 @@ from typing import Optional
 import ccxt.async_support as ccxt
 import pandas as pd
 
-from domains.crypto_coin.legacy.config import load_config, Config
-from domains.crypto_coin.legacy.optimizer import GeneticOptimizer, Individual, evaluate
-from domains.crypto_coin.legacy.notifier import Notifier
+from domains.crypto_coin.config.settings import load_config, Config
+from domains.crypto_coin.autotune.optimizer import GeneticOptimizer, Individual, evaluate
+from domains.crypto_coin.infra.notifier import Notifier
 
 
 # ── Busca de dados históricos ─────────────────────────────────────────────────
@@ -285,7 +285,7 @@ async def main():
     parser.add_argument("--dry-run",      action="store_true",      help="Não atualiza o .env, só mostra resultado")
     args = parser.parse_args()
 
-    from domains.crypto_coin.legacy.logger import setup_logger
+    from domains.crypto_coin.infra.logger import setup_logger
     logger = setup_logger()
 
     os.environ.setdefault("PAPER_TRADING", "true")

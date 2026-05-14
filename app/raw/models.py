@@ -46,6 +46,7 @@ class RawCollection(Base):
         Index("ix_raw_collections_module_status", "module", "processing_status"),
         Index("ix_raw_collections_schema", "module", "raw_schema_name", "raw_schema_version"),
         Index("ix_raw_collections_source_collected", "source_name", "collected_at"),
+        Index("ix_raw_collections_status_collected", "processing_status", "collected_at"),
     )
 
 

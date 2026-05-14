@@ -10,6 +10,7 @@ class CryptoSnapshotNormalizer(BaseNormalizer):
     module = "crypto"
     normalizer_name = "crypto_snapshot_normalizer"
     normalizer_version = "1.0.0"
+    normalized_model_classes = (NormalizedCryptoSnapshot, NormalizedMarketCandle)
 
     def normalize(self, raw: RawCollection) -> dict[str, Any] | None:
         if not isinstance(raw.raw_json, dict):

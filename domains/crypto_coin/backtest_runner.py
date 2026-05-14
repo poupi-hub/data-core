@@ -21,9 +21,9 @@ import numpy as np
 import pandas as pd
 from dotenv import load_dotenv
 
-from domains.crypto_coin.legacy.config import load_config, Config
-from domains.crypto_coin.legacy.metrics_calc import compute_all as compute_metrics
-from domains.crypto_coin.legacy.simulation import (
+from domains.crypto_coin.config.settings import load_config, Config
+from domains.crypto_coin.analytics.metrics.calc import compute_all as compute_metrics
+from domains.crypto_coin.backtesting.simulation import (
     PaperState,
     DEFAULT_INITIAL_BALANCE,
     paper_finalize_open_position,

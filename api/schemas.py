@@ -7,10 +7,16 @@ from pydantic import BaseModel, ConfigDict
 from database.models import CollectorDomain, RunStatus
 
 
+class DependencyStatus(BaseModel):
+    status: str
+    detail: str | None = None
+
+
 class HealthResponse(BaseModel):
     status: str
     app: str
     environment: str
+    dependencies: dict[str, DependencyStatus] | None = None
 
 
 class CollectorResponse(BaseModel):

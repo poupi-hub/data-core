@@ -1,5 +1,6 @@
 import json
 import logging
+import os
 import shutil
 import subprocess
 import time
@@ -180,15 +181,7 @@ class PoupiLegacyRawCollector:
         raise last_error
 
     def _run_legacy_scraper(self, url: str, source_name: str) -> dict[str, Any]:
-        command = [
-            shutil.which("npx.cmd") or shutil.which("npx") or "npx",
-            "ts-node",
-            "-r",
-            "tsconfig-paths/register",
-            "src/crawler/scrapers/raw-bridge.ts",
-            url,
-            source_name,
-        ]
+        command = self._legacy_scraper_command(url, source_name)
         completed = subprocess.run(
             command,
             cwd=self.backend_dir,
@@ -209,6 +202,25 @@ class PoupiLegacyRawCollector:
             raise RuntimeError(payload.get("error") or completed.stderr.strip() or "legacy scraper failed")
         return payload
 
+    def _legacy_scraper_command(self, url: str, source_name: str) -> list[str]:
+        compiled_bridge = self.backend_dir / "dist" / "src" / "crawler" / "scrapers" / "raw-bridge.js"
+        if compiled_bridge.exists():
+            return [
+                shutil.which("node.cmd") or shutil.which("node") or "node",
+                str(compiled_bridge.relative_to(self.backend_dir)),
+                url,
+                source_name,
+            ]
+        return [
+            shutil.which("npx.cmd") or shutil.which("npx") or "npx",
+            "ts-node",
+            "-r",
+            "tsconfig-paths/register",
+            "src/crawler/scrapers/raw-bridge.ts",
+            url,
+            source_name,
+        ]
+
     @staticmethod
     def _guess_source_name(url: str) -> str:
         from urllib.parse import urlparse
@@ -218,4 +230,7 @@ class PoupiLegacyRawCollector:
 
     @staticmethod
     def _default_backend_dir() -> Path:
+        configured = os.getenv("POUPI_LEGACY_BACKEND_DIR")
+        if configured:
+            return Path(configured)
         return Path(__file__).resolve().parents[4] / "domains" / "poupi_baby" / "backend"

@@ -86,9 +86,9 @@ def load_config(env_file: str = ".env") -> Config:
 
     cfg = Config(
         exchange=os.getenv("EXCHANGE", "binance").lower(),
-        api_key=os.getenv("API_KEY", ""),
-        api_secret=os.getenv("API_SECRET", ""),
-        api_passphrase=os.getenv("API_PASSPHRASE"),
+        api_key=os.getenv("CRYPTO_API_KEY") or os.getenv("API_KEY", ""),
+        api_secret=os.getenv("CRYPTO_API_SECRET") or os.getenv("API_SECRET", ""),
+        api_passphrase=os.getenv("CRYPTO_API_PASSPHRASE") or os.getenv("API_PASSPHRASE"),
 
         symbol=os.getenv("SYMBOL", "BTC/USDT"),
         timeframe=os.getenv("TIMEFRAME", "15m"),

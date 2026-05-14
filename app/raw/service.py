@@ -5,6 +5,7 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Any
 
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from database.models import CollectionRun, RunStatus
@@ -44,6 +45,7 @@ class RawCollectionService:
     def __init__(self, db: Session) -> None:
         self.db = db
         self.repository = RawRepository(db)
+        self._version_cache: set[tuple[str, ...]] = set()
 
     def save_html(
         self,
@@ -286,7 +288,27 @@ class RawCollectionService:
             raw_schema_name=item.raw_schema_name,
             raw_schema_version=item.raw_schema_version,
         )
-        saved = self.repository.add(raw)
+        try:
+            with self.db.begin_nested():
+                saved = self.repository.add(raw)
+        except IntegrityError:
+            # Concurrent insert lost the race — re-fetch the winner row.
+            existing = (
+                self.db.query(RawCollection)
+                .filter(
+                    RawCollection.module == item.module,
+                    RawCollection.source_name == item.source_name,
+                    RawCollection.checksum == checksum,
+                )
+                .one()
+            )
+            setattr(existing, "_raw_was_created", False)
+            logger.info(
+                "RAW collection deduplicated (concurrent write)",
+                extra={"raw_module": item.module, "source_name": item.source_name},
+            )
+            return existing
+
         setattr(saved, "_raw_was_created", True)
         logger.info(
             "RAW collection saved",
@@ -314,6 +336,9 @@ class RawCollectionService:
         description: str | None = None,
         metadata: dict[str, Any] | None = None,
     ) -> CollectorVersion:
+        cache_key = (module, source_name, collector_name, collector_version, raw_schema_name, raw_schema_version)
+        if cache_key in self._version_cache:
+            return None  # type: ignore[return-value]  # caller never uses the return value
         existing = (
             self.db.query(CollectorVersion)
             .filter(
@@ -327,6 +352,7 @@ class RawCollectionService:
             .one_or_none()
         )
         if existing:
+            self._version_cache.add(cache_key)
             return existing
         version = CollectorVersion(
             module=module,
@@ -340,6 +366,7 @@ class RawCollectionService:
         )
         self.db.add(version)
         self.db.flush()
+        self._version_cache.add(cache_key)
         return version
 
     def start_run(

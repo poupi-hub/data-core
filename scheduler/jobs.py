@@ -3,10 +3,13 @@ import logging
 from collections import defaultdict
 from datetime import datetime, timedelta, timezone
 
+from sqlalchemy import func, outerjoin
+
 from app.analytics.registry import analytics_registry
 from app.modules.registry import register_pipeline_modules
 from app.normalization.registry import normalizer_registry
-from database.models import CollectionRun, CollectionTarget, RunStatus
+from app.raw.models import RawCollection
+from database.models import CollectionRun, CollectionTarget, CollectorError, RunStatus
 from database.session import SessionLocal
 from workers.collector_worker import run_collector_by_name
 
@@ -32,22 +35,18 @@ def collect_raw_job(collector_name: str) -> None:
 
 def normalize_job(module: str | None = None, limit: int = 100) -> None:
     register_pipeline_modules()
-    db = SessionLocal()
-    try:
-        modules = [module] if module else normalizer_registry.modules()
-        for module_name in modules:
-            normalizer_types = normalizer_registry.all().get(module_name, [])
-            for normalizer_type in normalizer_types:
-                logger.info(
-                    "Starting normalization job",
-                    extra={
-                        "pipeline_module": module_name,
-                        "normalizer": normalizer_type.__name__,
-                    },
-                )
+    modules = [module] if module else normalizer_registry.modules()
+    for module_name in modules:
+        for normalizer_type in normalizer_registry.all().get(module_name, []):
+            logger.info(
+                "Starting normalization job",
+                extra={"pipeline_module": module_name, "normalizer": normalizer_type.__name__},
+            )
+            db = SessionLocal()
+            try:
                 normalizer_type(db).run(limit=limit)
-    finally:
-        db.close()
+            finally:
+                db.close()
 
 
 MODULE_COLLECTORS = {
@@ -154,7 +153,28 @@ def run_collection_targets_job(
     ensure_default_collection_targets()
     db = SessionLocal()
     try:
-        query = db.query(CollectionTarget).filter(CollectionTarget.active.is_(True))
+        # Subquery: last collected_at per (source_name, collector_name, target_url)
+        last_col = (
+            db.query(
+                RawCollection.source_name,
+                RawCollection.collector_name,
+                RawCollection.target_url,
+                func.max(RawCollection.collected_at).label("last_collected_at"),
+            )
+            .group_by(RawCollection.source_name, RawCollection.collector_name, RawCollection.target_url)
+            .subquery()
+        )
+        query = (
+            db.query(CollectionTarget)
+            .outerjoin(
+                last_col,
+                (CollectionTarget.source_name == last_col.c.source_name)
+                & (CollectionTarget.collector_name == last_col.c.collector_name)
+                & (CollectionTarget.target_url == last_col.c.target_url),
+            )
+            .filter(CollectionTarget.active.is_(True))
+            .order_by(last_col.c.last_collected_at.asc().nullsfirst(), CollectionTarget.created_at)
+        )
         if module:
             query = query.filter(CollectionTarget.module == module)
         if source:
@@ -162,7 +182,7 @@ def run_collection_targets_job(
         if collector_name:
             query = query.filter(CollectionTarget.collector_name == collector_name)
         target_limit = max_targets if max_targets is not None else limit
-        targets = query.order_by(CollectionTarget.created_at).limit(target_limit).all()
+        targets = query.limit(target_limit).all()
         target_rows = [
             {
                 "id": str(target.id),
@@ -205,12 +225,15 @@ def run_collection_targets_job(
             if not available_targets:
                 continue
             if selected_collector_name == "poupi_legacy_raw_collector":
-                raw_saved += _run_poupi_legacy_targets(
+                result = _run_poupi_legacy_targets(
                     db,
                     available_targets,
                     delay_seconds=delay_seconds,
                     timeout_seconds=timeout_seconds,
                 )
+                result_counts = _coerce_poupi_target_result(result)
+                raw_saved += result_counts["raw_saved_count"]
+                errors += result_counts["error_count"]
             else:
                 logger.warning(
                     "Collection target collector is not supported by target runner",
@@ -264,13 +287,19 @@ def run_collection_target_by_id(
                 "skipped_locked": 1,
             }
         if target.collector_name == "poupi_legacy_raw_collector":
-            raw_saved = _run_poupi_legacy_targets(
+            result = _run_poupi_legacy_targets(
                 db,
                 [target],
                 delay_seconds=delay_seconds,
                 timeout_seconds=timeout_seconds,
             )
-            return {"targets": 1, "raw_saved_count": raw_saved, "error_count": 0, "skipped_locked": 0}
+            result_counts = _coerce_poupi_target_result(result)
+            return {
+                "targets": 1,
+                "raw_saved_count": result_counts["raw_saved_count"],
+                "error_count": result_counts["error_count"],
+                "skipped_locked": 0,
+            }
         return {
             "targets": 1,
             "raw_saved_count": 0,
@@ -299,7 +328,7 @@ def _run_poupi_legacy_targets(
     *,
     delay_seconds: float = 0.0,
     timeout_seconds: int | None = None,
-) -> int:
+) -> dict[str, int]:
     from app.modules.ecommerce.collectors.poupi_legacy_collector import LegacyPoupiTarget, PoupiLegacyRawCollector
 
     collector = PoupiLegacyRawCollector(
@@ -322,7 +351,19 @@ def _run_poupi_legacy_targets(
             for target in targets
         ]
     )
-    return int(result.get("raw_saved_count", 0))
+    return {
+        "raw_saved_count": int(result.get("raw_saved_count", 0)),
+        "error_count": int(result.get("error_count", 0)),
+    }
+
+
+def _coerce_poupi_target_result(result: int | dict[str, int]) -> dict[str, int]:
+    if isinstance(result, int):
+        return {"raw_saved_count": result, "error_count": 0}
+    return {
+        "raw_saved_count": int(result.get("raw_saved_count", 0)),
+        "error_count": int(result.get("error_count", 0)),
+    }
 
 
 def _has_running_target_lock(db, target: CollectionTarget, *, ttl_minutes: int = 30) -> bool:
@@ -339,6 +380,248 @@ def _has_running_target_lock(db, target: CollectionTarget, *, ttl_minutes: int =
         .first()
         is not None
     )
+
+
+def cleanup_stale_runs_job(ttl_minutes: int = 30) -> None:
+    from scheduler.circuit_breaker import check_source_circuit
+
+    cutoff = datetime.now(timezone.utc) - timedelta(minutes=ttl_minutes)
+    db = SessionLocal()
+    try:
+        stale = (
+            db.query(CollectionRun)
+            .filter(CollectionRun.status == RunStatus.running, CollectionRun.started_at < cutoff)
+            .all()
+        )
+        failed_sources: set[tuple[str, str]] = set()
+        for run in stale:
+            run.status = RunStatus.failed
+            run.error_message = f"Forcibly terminated: stale after {ttl_minutes}min"
+            run.finished_at = datetime.now(timezone.utc)
+            db.add(
+                CollectorError(
+                    run_id=run.id,
+                    collector_name=run.collector_name,
+                    error_type="StaleRunTimeout",
+                    message=f"Run exceeded stale TTL of {ttl_minutes} minutes without completing",
+                    context={"ttl_minutes": ttl_minutes, "started_at": run.started_at.isoformat() if run.started_at else None},
+                )
+            )
+            if run.module and run.source_name:
+                failed_sources.add((run.module, run.source_name))
+
+        if stale:
+            db.commit()
+            logger.warning("Marked stale runs as failed", extra={"count": len(stale)})
+            for module, source_name in failed_sources:
+                check_source_circuit(db, module=module, source_name=source_name)
+    finally:
+        db.close()
+
+
+def data_retention_job(
+    raw_retention_days: int = 90,
+    normalized_retention_days: int = 180,
+    run_retention_days: int = 60,
+    lineage_retention_days: int = 180,
+    error_retention_days: int = 90,
+    batch_size: int = 1000,
+) -> dict[str, int]:
+    """Delete old processed records to control DB growth.
+
+    Cleans up in dependency order to avoid FK violations:
+      1. ProductPriceAnalytics (depends on NormalizedProduct)
+      2. NormalizedProduct processed > normalized_retention_days
+      3. DataLineage linked to deleted raw/normalized (> lineage_retention_days)
+      4. CollectorError resolved > error_retention_days
+      5. CollectionRun finished > run_retention_days
+      6. RawCollection processed/ignored > raw_retention_days
+    """
+    from app.normalization.models import NormalizedProduct
+    from app.analytics.models import ProductPriceAnalytics
+    from app.documentation.models import DataLineage
+
+    now = datetime.now(timezone.utc)
+    cutoff_raw = now - timedelta(days=raw_retention_days)
+    cutoff_norm = now - timedelta(days=normalized_retention_days)
+    cutoff_run = now - timedelta(days=run_retention_days)
+    cutoff_lineage = now - timedelta(days=lineage_retention_days)
+    cutoff_error = now - timedelta(days=error_retention_days)
+
+    db = SessionLocal()
+    totals: dict[str, int] = {
+        "deleted_analytics": 0,
+        "deleted_normalized": 0,
+        "deleted_lineage": 0,
+        "deleted_errors": 0,
+        "deleted_runs": 0,
+        "deleted_raw": 0,
+    }
+    try:
+        # 1. Analytics + normalized products
+        old_product_ids = [
+            row[0]
+            for row in db.query(NormalizedProduct.id)
+            .filter(
+                NormalizedProduct.analytics_status == "processed",
+                NormalizedProduct.collected_at < cutoff_norm,
+            )
+            .limit(batch_size)
+            .all()
+        ]
+        if old_product_ids:
+            totals["deleted_analytics"] = (
+                db.query(ProductPriceAnalytics)
+                .filter(ProductPriceAnalytics.product_id.in_(old_product_ids))
+                .delete(synchronize_session=False)
+            )
+            totals["deleted_normalized"] = (
+                db.query(NormalizedProduct)
+                .filter(NormalizedProduct.id.in_(old_product_ids))
+                .delete(synchronize_session=False)
+            )
+
+        # 2. DataLineage older than cutoff (created_at on DataLineage)
+        totals["deleted_lineage"] = (
+            db.query(DataLineage)
+            .filter(DataLineage.created_at < cutoff_lineage)
+            .limit(batch_size)
+            .delete(synchronize_session=False)
+        )
+
+        # 3. CollectorError resolved and old
+        totals["deleted_errors"] = (
+            db.query(CollectorError)
+            .filter(
+                CollectorError.resolved_at.isnot(None),
+                CollectorError.resolved_at < cutoff_error,
+            )
+            .limit(batch_size)
+            .delete(synchronize_session=False)
+        )
+
+        # 4. CollectionRun finished and old
+        totals["deleted_runs"] = (
+            db.query(CollectionRun)
+            .filter(
+                CollectionRun.finished_at.isnot(None),
+                CollectionRun.finished_at < cutoff_run,
+                CollectionRun.status.in_(["success", "failed"]),
+            )
+            .limit(batch_size)
+            .delete(synchronize_session=False)
+        )
+
+        # 5. RawCollection processed/ignored
+        old_raw_ids = [
+            row[0]
+            for row in db.query(RawCollection.id)
+            .filter(
+                RawCollection.processing_status.in_(["normalized", "ignored"]),
+                RawCollection.collected_at < cutoff_raw,
+            )
+            .limit(batch_size)
+            .all()
+        ]
+        if old_raw_ids:
+            totals["deleted_raw"] = (
+                db.query(RawCollection)
+                .filter(RawCollection.id.in_(old_raw_ids))
+                .delete(synchronize_session=False)
+            )
+
+        db.commit()
+        logger.info("Data retention cleanup complete", extra=totals)
+        return totals
+    except Exception:
+        db.rollback()
+        raise
+    finally:
+        db.close()
+
+
+def alert_webhook_job() -> None:
+    from app.pipeline_api import _build_alerts_payload
+    from core.config import settings
+    from notifications.webhook import send_webhook
+
+    if not settings.alert_webhook_url:
+        return
+
+    db = SessionLocal()
+    try:
+        payload = _build_alerts_payload(
+            db=db,
+            module=None,
+            source_name=None,
+            raw_freshness_hours=settings.alert_webhook_raw_freshness_hours,
+            raw_pending_minutes=settings.alert_webhook_raw_pending_minutes,
+            analytics_pending_minutes=settings.alert_webhook_analytics_pending_minutes,
+            limit=100,
+        )
+    finally:
+        db.close()
+
+    if not payload.get("has_alerts"):
+        return
+
+    send_webhook(
+        {
+            "source": "data-core",
+            "event": "operational_alert",
+            "environment": settings.app_env,
+            "summary": payload["summary"],
+            "alert_count": sum(v for v in payload["summary"].values() if isinstance(v, int)),
+            "details_url": f"{settings.api_host}:{settings.api_port}/api/v1/operations/alerts",
+        }
+    )
+    logger.info("Operational alert webhook sent", extra={"summary": payload["summary"]})
+
+
+def backfill_canonical_product_id_job(batch_size: int = 500) -> dict[str, int]:
+    """One-time backfill: set canonical_product_id on rows that still have NULL.
+
+    Mirrors the priority chain in product_normalizer.py:
+      1. source_id (used as-is)
+      2. _title_slug(title) — slug:…-sha1_12
+
+    Safe to run multiple times — only touches NULL rows.
+    """
+    from app.normalization.models import NormalizedProduct
+    from app.modules.ecommerce.normalizers.product_normalizer import _title_slug
+
+    db = SessionLocal()
+    updated_source = 0
+    updated_slug = 0
+    try:
+        while True:
+            batch = (
+                db.query(NormalizedProduct)
+                .filter(NormalizedProduct.canonical_product_id.is_(None))
+                .limit(batch_size)
+                .all()
+            )
+            if not batch:
+                break
+            for product in batch:
+                if product.source_id:
+                    product.canonical_product_id = product.source_id
+                    updated_source += 1
+                else:
+                    slug = _title_slug(product.title)
+                    if slug:
+                        product.canonical_product_id = slug
+                        updated_slug += 1
+            db.commit()
+
+        totals = {"updated_via_source_id": updated_source, "updated_via_slug": updated_slug}
+        logger.info("Backfill canonical_product_id concluído", extra=totals)
+        return totals
+    except Exception:
+        db.rollback()
+        raise
+    finally:
+        db.close()
 
 
 def analytics_job(module: str | None = None, limit: int = 100) -> None:

@@ -29,6 +29,20 @@ class Settings(BaseSettings):
     collector_default_max_retries: int = 3
     collector_default_retry_delay_seconds: int = 10
 
+    # Auth
+    api_key_enabled: bool = False
+    api_key: str = ""
+
+    # Redis
+    redis_url: str = "redis://localhost:6379/0"
+    cache_enabled: bool = False
+
+    # Alerting
+    alert_webhook_url: str = ""
+    alert_webhook_raw_freshness_hours: int = 24
+    alert_webhook_raw_pending_minutes: int = 60
+    alert_webhook_analytics_pending_minutes: int = 120
+
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
 

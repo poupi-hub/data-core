@@ -102,8 +102,9 @@ def get_interface_summary() -> dict:
         "display_name": DISPLAY_NAME,
         "description": DESCRIPTION,
         "runtime": "nestjs/typescript",
-        "backend_path": "domains/poupi_baby/backend",
-        "worker_path": "domains/poupi_baby/worker",
+        "repo": "Projetos/poupi-baby",
+        "backend_path": "backend/src",
+        "worker_path": "worker/src",
         "modules": len(MODULES),
         "endpoints": len(ENDPOINTS),
     }

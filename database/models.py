@@ -78,6 +78,7 @@ class CollectionRun(Base):
     __table_args__ = (
         Index("ix_collection_runs_collector_started", "collector_name", "started_at"),
         Index("ix_collection_runs_schema", "module", "raw_schema_name", "raw_schema_version"),
+        Index("ix_collection_runs_status_started", "status", "started_at"),
     )
 
 

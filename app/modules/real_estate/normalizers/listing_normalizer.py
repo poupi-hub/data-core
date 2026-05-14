@@ -8,6 +8,7 @@ class RealEstateListingNormalizer(BaseNormalizer):
     module = "real_estate"
     normalizer_name = "generic_real_estate_normalizer"
     normalizer_version = "1.0.0"
+    normalized_model_classes = (NormalizedRealEstateListing,)
 
     def __init__(self, db):
         super().__init__(db)
