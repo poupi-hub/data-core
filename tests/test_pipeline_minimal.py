@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 from uuid import uuid4
 
@@ -478,6 +478,62 @@ def test_product_lineage_endpoint_returns_raw_and_analytics(db_session, api_clie
     assert payload["raw_collection"]["id"] == str(raw.id)
     assert payload["normalization"]["normalizer_name"] == "pytest_normalizer"
     assert len(payload["analytics"]) == 1
+
+
+def test_ecommerce_price_changes_endpoint_skips_consecutive_duplicates(db_session, api_client):
+    source = f"pytest-price-change-{uuid4()}"
+    external_id = f"https://example.test/{uuid4()}"
+    base_time = datetime.now(timezone.utc)
+    raws = [
+        RawCollectionService(db_session).save_json(
+            module="ecommerce",
+            source_name=source,
+            collector_name="pytest_collector",
+            raw_schema_name="pytestProduct",
+            raw_json={"title": "Produto mudança", "price": price},
+            target_url=f"{external_id}?snapshot={index}",
+        )
+        for index, price in enumerate([120, 100, 100])
+    ]
+    snapshots = [
+        NormalizedProduct(
+            raw_collection_id=raws[0].id,
+            external_id=external_id,
+            title="Produto mudança",
+            price=Decimal("120.00"),
+            store_name=source,
+            collected_at=base_time - timedelta(days=2),
+        ),
+        NormalizedProduct(
+            raw_collection_id=raws[1].id,
+            external_id=external_id,
+            title="Produto mudança",
+            price=Decimal("100.00"),
+            store_name=source,
+            collected_at=base_time - timedelta(days=1),
+        ),
+        NormalizedProduct(
+            raw_collection_id=raws[2].id,
+            external_id=external_id,
+            title="Produto mudança",
+            price=Decimal("100.00"),
+            store_name=source,
+            collected_at=base_time,
+        ),
+    ]
+    db_session.add_all(snapshots)
+    db_session.commit()
+
+    response = api_client.get(f"/api/v1/sources/ecommerce/{source}/price-changes?days=10")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["count"] == 1
+    item = payload["items"][0]
+    assert item["current_price"] == "100.00"
+    assert item["previous_price"] == "120.00"
+    assert item["direction"] == "down"
+    assert item["change_percent"] == "-16.67"
 
 
 def _cleanup_pytest_records(db_session) -> None:

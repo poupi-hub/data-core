@@ -1,5 +1,6 @@
 import re
 from datetime import datetime, timedelta, timezone
+from decimal import Decimal
 from typing import Any
 from uuid import UUID
 
@@ -342,6 +343,82 @@ def source_status(module: str, source_name: str, db: Session = Depends(db_sessio
         "normalized_count": normalized_count,
         "analytics_pending": analytics_pending,
         "unresolved_collector_errors": [_to_dict(row) for row in unresolved_errors_query.order_by(desc(CollectorError.created_at)).limit(10).all()],
+    }
+
+
+@router.get("/sources/ecommerce/{source_name}/price-changes")
+def ecommerce_price_changes(
+    source_name: str,
+    db: Session = Depends(db_session),
+    days: int = Query(default=30, ge=1, le=365),
+    limit: int = Query(default=50, ge=1, le=500),
+    include_unchanged: bool = False,
+) -> dict[str, Any]:
+    since = datetime.now(timezone.utc) - timedelta(days=days)
+    rows = (
+        db.query(NormalizedProduct)
+        .filter(
+            NormalizedProduct.store_name == source_name,
+            NormalizedProduct.price.is_not(None),
+            NormalizedProduct.collected_at >= since,
+        )
+        .order_by(NormalizedProduct.store_name, NormalizedProduct.external_id, desc(NormalizedProduct.collected_at))
+        .limit(limit * 20)
+        .all()
+    )
+    groups: dict[str, list[NormalizedProduct]] = {}
+    for row in rows:
+        key = row.external_id or row.source_id or row.title or str(row.id)
+        groups.setdefault(key, []).append(row)
+
+    changes = []
+    for key, snapshots in groups.items():
+        ordered = sorted(snapshots, key=lambda item: item.collected_at or datetime.min.replace(tzinfo=timezone.utc), reverse=True)
+        latest = ordered[0]
+        previous = _previous_distinct_price_snapshot(ordered)
+        current_price = _decimal_or_none(latest.price)
+        previous_price = _decimal_or_none(previous.price) if previous else None
+        if previous_price is None and not include_unchanged:
+            continue
+        changed = previous_price is not None and current_price != previous_price
+        if not changed and not include_unchanged:
+            continue
+        delta = current_price - previous_price if current_price is not None and previous_price is not None else None
+        change_percent = (
+            (delta / previous_price * Decimal("100")).quantize(Decimal("0.01"))
+            if delta is not None and previous_price not in (None, Decimal("0"))
+            else None
+        )
+        changes.append(
+            {
+                "identity": key,
+                "product_id": str(latest.id),
+                "raw_collection_id": str(latest.raw_collection_id),
+                "title": latest.title,
+                "store_name": latest.store_name,
+                "target_url": (latest.normalization_metadata_json or {}).get("target_url"),
+                "current_price": str(current_price) if current_price is not None else None,
+                "previous_price": str(previous_price) if previous_price is not None else None,
+                "delta": str(delta) if delta is not None else None,
+                "change_percent": str(change_percent) if change_percent is not None else None,
+                "direction": _price_change_direction(delta),
+                "current_collected_at": latest.collected_at,
+                "previous_collected_at": previous.collected_at if previous else None,
+                "snapshot_count": len(ordered),
+            }
+        )
+    changes.sort(key=lambda item: (item["current_collected_at"] or datetime.min.replace(tzinfo=timezone.utc)), reverse=True)
+    return {
+        "module": "ecommerce",
+        "source_name": source_name,
+        "days": days,
+        "count": min(len(changes), limit),
+        "items": changes[:limit],
+        "semantics": {
+            "history": "normalized_products snapshots",
+            "duplicate_policy": "consecutive equal prices are skipped when finding previous_price",
+            "direction": "down means current_price is lower than previous_price",
+        },
     }
 
 
@@ -895,6 +972,29 @@ def _analytics_pending_for_source(db: Session, module: str, source_name: str) ->
         raw_ids = db.query(RawCollection.id).filter(RawCollection.module == module, RawCollection.source_name == source_name)
         query = query.filter(model.raw_collection_id.in_(raw_ids))
     return query.count()
+
+
+def _previous_distinct_price_snapshot(snapshots: list[NormalizedProduct]) -> NormalizedProduct | None:
+    if not snapshots:
+        return None
+    latest_price = _decimal_or_none(snapshots[0].price)
+    for snapshot in snapshots[1:]:
+        price = _decimal_or_none(snapshot.price)
+        if price is not None and price != latest_price:
+            return snapshot
+    return snapshots[1] if len(snapshots) > 1 else None
+
+
+def _decimal_or_none(value: object) -> Decimal | None:
+    if value in (None, ""):
+        return None
+    return Decimal(str(value))
+
+
+def _price_change_direction(delta: Decimal | None) -> str:
+    if delta is None or delta == 0:
+        return "unchanged"
+    return "up" if delta > 0 else "down"
 
 
 def _canonical_module(module: str | None) -> str | None:
