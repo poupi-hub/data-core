@@ -39,6 +39,18 @@ powershell -ExecutionPolicy Bypass -File .\scripts\validate-collection.ps1 -Modu
 
 O comando falha se houver target ativo bloqueado ou readiness falso.
 
+## Smoke Test Poupi Baby
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\smoke-poupi.ps1
+```
+
+O smoke test importa `examples/poupi-baby-targets.json`, roda coleta, normalizacao, analytics, readiness, quality por fonte e export de coverage. Para validar apenas o estado atual sem coletar novamente:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\smoke-poupi.ps1 -SkipCollect
+```
+
 ## Ler Readiness
 
 ```powershell
