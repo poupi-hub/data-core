@@ -39,6 +39,20 @@ powershell -ExecutionPolicy Bypass -File .\scripts\validate-collection.ps1 -Modu
 
 O comando falha se houver target ativo bloqueado ou readiness falso.
 
+## Rodar Targets Com Limites
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\run-targets.ps1 -Module ecommerce -CollectorName poupi_legacy_raw_collector -MaxTargets 5 -DelaySeconds 2 -TimeoutSeconds 180
+```
+
+Para listar o que seria coletado sem executar scraping:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\run-targets.ps1 -Module ecommerce -CollectorName poupi_legacy_raw_collector -MaxTargets 5 -ListOnly
+```
+
+`MaxTargets`, `DelaySeconds`, `TimeoutSeconds`, `DryRun` e `ListOnly` existem para evitar coleta agressiva e facilitar operacao em producao.
+
 ## Smoke Test Poupi Baby
 
 ```powershell
@@ -89,6 +103,20 @@ Qualidade por fonte mostra:
 
 Targets candidatos/inativos aparecem nos detalhes e nas taxas historicas, mas nao bloqueiam o status `ok` de uma fonte quando todos os targets ativos estao prontos.
 
+## Ler Alertas Operacionais
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\operational-alerts.ps1 -Module ecommerce
+```
+
+Alertas cobrem:
+
+- targets ativos sem RAW recente;
+- RAW pendente antigo;
+- falhas de normalizacao;
+- analytics pendente antigo;
+- erros de collector nao resolvidos.
+
 ## Exportar Relatorios
 
 ```powershell
@@ -109,3 +137,5 @@ Os arquivos saem em `runtime-data/collection-coverage.md` e `runtime-data/collec
 ## Standby
 
 Mercado Livre fica em standby por enquanto. O target permanece como `candidate_target`, porque o scraper legado coleta RAW, mas ainda nao gera produto normalizavel sem estrategia/API propria.
+
+Novos targets de Drogasil, Droga Raia e Pague Menos devem entrar primeiro como `candidate_target` inativos. Promova para `production_target` somente depois de validar coleta, normalizacao e analytics individualmente.

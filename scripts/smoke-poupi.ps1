@@ -4,6 +4,9 @@ param(
   [string]$Source,
   [string]$CollectorName = "poupi_legacy_raw_collector",
   [int]$Limit = 100,
+  [int]$MaxTargets = 0,
+  [double]$DelaySeconds = 0,
+  [int]$TimeoutSeconds = 0,
   [double]$MinActiveReadinessRate = 1.0,
   [switch]$SkipImport,
   [switch]$SkipCollect,
@@ -79,6 +82,9 @@ $validateArgs = @(
   "-ApiUrl", $ApiUrl
 )
 if ($Source) { $validateArgs += @("-Source", $Source) }
+if ($MaxTargets -gt 0) { $validateArgs += @("-MaxTargets", $MaxTargets) }
+if ($DelaySeconds -gt 0) { $validateArgs += @("-DelaySeconds", $DelaySeconds) }
+if ($TimeoutSeconds -gt 0) { $validateArgs += @("-TimeoutSeconds", $TimeoutSeconds) }
 if ($SkipCollect) { $validateArgs += "-SkipCollect" }
 if ($SkipExports) { $validateArgs += "-SkipExports" }
 $validation = Invoke-JsonScript $validateArgs

@@ -227,6 +227,51 @@
     },
     {
       "module": "ecommerce",
+      "source_name": "drogasil",
+      "collector_name": "poupi_legacy_raw_collector",
+      "target_url": "https://www.drogasil.com.br/kit-2-fraldas-pampers-supersec-g-26-unidades-666396.html",
+      "active": false,
+      "metadata_json": {
+        "kind": "candidate_target",
+        "owner": "data-platform",
+        "category": "baby",
+        "priority": "low",
+        "product_seed": "pampers_supersec_g_26_kit_2",
+        "inactive_reason": "candidate expansion; validate individually before enabling"
+      }
+    },
+    {
+      "module": "ecommerce",
+      "source_name": "drogaraia",
+      "collector_name": "poupi_legacy_raw_collector",
+      "target_url": "https://www.drogaraia.com.br/pampers-fralda-descartavel-confort-sec-pacote-max-xg-com-92-unidades-1250294.html?origin=search",
+      "active": false,
+      "metadata_json": {
+        "kind": "candidate_target",
+        "owner": "data-platform",
+        "category": "baby",
+        "priority": "low",
+        "product_seed": "pampers_confort_sec_xg_92",
+        "inactive_reason": "candidate expansion; validate individually before enabling"
+      }
+    },
+    {
+      "module": "ecommerce",
+      "source_name": "paguemenos",
+      "collector_name": "poupi_legacy_raw_collector",
+      "target_url": "https://www.paguemenos.com.br/fralda-pampers-premium-care-pants-xg-com-26un/p",
+      "active": false,
+      "metadata_json": {
+        "kind": "candidate_target",
+        "owner": "data-platform",
+        "category": "baby",
+        "priority": "low",
+        "product_seed": "pampers_premium_care_pants_xg_26",
+        "inactive_reason": "candidate expansion; validate individually before enabling"
+      }
+    },
+    {
+      "module": "ecommerce",
       "source_name": "mercadolivre",
       "collector_name": "poupi_legacy_raw_collector",
       "target_url": "https://www.mercadolivre.com.br/fralda-pampers-confort-sec-xxxg-com-44un/p/MLB35369029",

@@ -270,7 +270,35 @@ def test_poupi_legacy_normalizer_ignores_failed_payload(db_session):
     assert result.loaded_raw >= 1
     db_session.refresh(raw)
     assert raw.processing_status == "ignored"
+    assert "payload success=false" in raw.error_message
     assert db_session.query(NormalizedProduct).filter(NormalizedProduct.store_name == source).count() == 0
+
+
+def test_poupi_legacy_normalizer_handles_partial_payload_and_price_variants(db_session):
+    source = f"pytest-poupi-partial-{uuid4()}"
+    RawCollectionService(db_session).save_json(
+        module="ecommerce",
+        source_name=source,
+        collector_name="poupi_legacy_raw_collector",
+        raw_schema_name="scrapedProduct",
+        raw_schema_version="1.0.0",
+        raw_json={
+            "scrapedProduct": {
+                "productName": " Produto com preco parcial ",
+                "price": {"amount_cents": 1299},
+                "store": source,
+                "available": True,
+            },
+        },
+    )
+
+    result = PoupiLegacyScrapedProductV1Normalizer(db_session).run(limit=10)
+
+    product = db_session.query(NormalizedProduct).filter(NormalizedProduct.store_name == source).one()
+    assert result.normalized >= 1
+    assert product.title == "Produto com preco parcial"
+    assert product.price == Decimal("12.99")
+    assert product.availability == "in_stock"
 
 
 def test_poupi_legacy_normalizer_stamps_success_metadata_for_quality(db_session):
@@ -310,6 +338,48 @@ def test_operations_freshness_endpoint(api_client):
     assert "summary" in payload
     assert "items" in payload
     assert set(payload["summary"]).issuperset({"ok", "violated", "unknown_sla"})
+
+
+def test_operations_alerts_endpoint_reports_collection_risks(db_session, api_client):
+    source = f"pytest-alerts-{uuid4()}"
+    db_session.add(
+        CollectionTarget(
+            module="ecommerce",
+            source_name=source,
+            collector_name="poupi_legacy_raw_collector",
+            target_url=f"https://example.test/{uuid4()}",
+            active=True,
+            metadata_json={"pytest": True},
+        )
+    )
+    old_raw = RawCollectionService(db_session).save_json(
+        module="ecommerce",
+        source_name=source,
+        collector_name="pytest_collector",
+        raw_schema_name="pytestProduct",
+        raw_json={"title": "Produto pendente antigo", "price": 10},
+    )
+    old_raw.collected_at = datetime.now(timezone.utc) - timedelta(hours=3)
+    db_session.commit()
+
+    response = api_client.get(
+        f"/api/v1/operations/alerts?module=ecommerce&source_name={source}&raw_pending_minutes=60&raw_freshness_hours=1"
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["has_alerts"] is True
+    assert payload["summary"]["targets_without_recent_raw"] == 1
+    assert payload["summary"]["raw_pending_too_old"] == 1
+
+
+def test_run_pipeline_once_endpoint(api_client):
+    response = api_client.post("/api/v1/operations/pipeline/run?module=ecommerce&skip_normalize=true&skip_analytics=true")
+
+    assert response.status_code == 200
+    assert response.json()["module"] == "ecommerce"
+    assert response.json()["normalized"] is False
+    assert response.json()["analytics"] is False
 
 
 def test_collection_readiness_endpoint_reports_active_targets(db_session, api_client):
@@ -630,6 +700,35 @@ def test_collection_target_runner_skips_locked_target(db_session):
     assert result["raw_saved_count"] == 0
 
 
+def test_collection_target_runner_dry_run_lists_limited_targets(db_session):
+    source = f"pytest-target-dry-run-{uuid4()}"
+    for _index in range(3):
+        db_session.add(
+            CollectionTarget(
+                module="ecommerce",
+                source_name=source,
+                collector_name="poupi_legacy_raw_collector",
+                target_url=f"https://example.test/{uuid4()}",
+                active=True,
+                metadata_json={"pytest": True},
+            )
+        )
+    db_session.commit()
+
+    result = run_collection_targets_job(
+        module="ecommerce",
+        source=source,
+        collector_name="poupi_legacy_raw_collector",
+        max_targets=2,
+        dry_run=True,
+    )
+
+    assert result["targets"] == 2
+    assert result["raw_saved_count"] == 0
+    assert result["dry_run"] is True
+    assert len(result["targets_detail"]) == 2
+
+
 def test_ecommerce_module_job_uses_collection_targets_runner(db_session, monkeypatch):
     source = f"pytest-module-job-{uuid4()}"
     db_session.add(
@@ -645,7 +744,7 @@ def test_ecommerce_module_job_uses_collection_targets_runner(db_session, monkeyp
     db_session.commit()
     called = {"targets": 0}
 
-    def fake_run_poupi_targets(_db, targets):
+    def fake_run_poupi_targets(_db, targets, **_kwargs):
         called["targets"] = len(targets)
         return len(targets)
 

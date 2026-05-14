@@ -3,6 +3,9 @@ param(
   [string]$Source,
   [string]$CollectorName = "poupi_legacy_raw_collector",
   [int]$Limit = 100,
+  [int]$MaxTargets = 0,
+  [double]$DelaySeconds = 0,
+  [int]$TimeoutSeconds = 0,
   [string]$ApiUrl = "http://127.0.0.1:8000",
   [switch]$SkipCollect,
   [switch]$SkipExports
@@ -46,11 +49,17 @@ if (-not $SkipCollect) {
   if ($Source) { $collectArgs += @("-Source", $Source) }
   if ($CollectorName) { $collectArgs += @("-CollectorName", $CollectorName) }
   $collectArgs += @("-Limit", $Limit)
+  if ($MaxTargets -gt 0) { $collectArgs += @("-MaxTargets", $MaxTargets) }
+  if ($DelaySeconds -gt 0) { $collectArgs += @("-DelaySeconds", $DelaySeconds) }
+  if ($TimeoutSeconds -gt 0) { $collectArgs += @("-TimeoutSeconds", $TimeoutSeconds) }
+  $collectArgs += @("-ApiUrl", $ApiUrl)
   powershell @collectArgs
 }
 
 Write-Host "Running normalization and analytics worker once..."
-docker compose exec -T api python -m app.jobs.worker --once
+$pipelineQuery = @("limit=100")
+if ($Module) { $pipelineQuery += "module=$([uri]::EscapeDataString($Module))" }
+Invoke-RestMethod -Method Post "$ApiUrl/api/v1/operations/pipeline/run?$($pipelineQuery -join '&')" | Out-Null
 
 Write-Host "Checking collection readiness..."
 $readiness = Invoke-RestMethod "$ApiUrl/api/v1/operations/collection-readiness"

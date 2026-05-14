@@ -32,7 +32,7 @@ from app.data_quality.models import DataQualityRun
 from app.documentation.models import DataLineage, DataSla
 from app.documentation.services import DocumentationService
 from database.models import CollectionRun, CollectionTarget, CollectorError, RunStatus
-from scheduler.jobs import MODULE_COLLECTORS, ensure_default_collection_targets, run_collection_targets_job
+from scheduler.jobs import MODULE_COLLECTORS, analytics_job, ensure_default_collection_targets, normalize_job, run_collection_targets_job
 
 router = APIRouter(prefix="/api/v1", tags=["pipeline"])
 
@@ -592,8 +592,42 @@ def run_collection_targets(
     source_name: str | None = None,
     collector_name: str | None = None,
     limit: int = Query(default=100, ge=1, le=500),
-) -> dict[str, int]:
-    return run_collection_targets_job(module=module, source=source_name, collector_name=collector_name, limit=limit)
+    max_targets: int | None = Query(default=None, ge=1, le=500),
+    delay_seconds: float = Query(default=0, ge=0, le=60),
+    timeout_seconds: int | None = Query(default=None, ge=5, le=600),
+    dry_run: bool = False,
+    list_only: bool = False,
+) -> dict[str, object]:
+    return run_collection_targets_job(
+        module=module,
+        source=source_name,
+        collector_name=collector_name,
+        limit=limit,
+        max_targets=max_targets,
+        delay_seconds=delay_seconds,
+        timeout_seconds=timeout_seconds,
+        dry_run=dry_run,
+        list_only=list_only,
+    )
+
+
+@router.post("/operations/pipeline/run")
+def run_pipeline_once(
+    module: str | None = None,
+    limit: int = Query(default=100, ge=1, le=500),
+    skip_normalize: bool = False,
+    skip_analytics: bool = False,
+) -> dict[str, Any]:
+    if not skip_normalize:
+        normalize_job(module=module, limit=limit)
+    if not skip_analytics:
+        analytics_job(module=module, limit=limit)
+    return {
+        "module": module,
+        "limit": limit,
+        "normalized": not skip_normalize,
+        "analytics": not skip_analytics,
+    }
 
 
 @router.get("/sources/{module}/{source_name}/status")
@@ -909,6 +943,113 @@ def operations_summary(db: Session = Depends(db_session)) -> dict[str, Any]:
         "latest_quality_runs": [_to_dict(row) for row in latest_quality],
         "recent_collector_errors": [_to_dict(row) for row in recent_errors],
     }
+
+
+@router.get("/operations/alerts")
+def operations_alerts(
+    db: Session = Depends(db_session),
+    module: str | None = None,
+    source_name: str | None = None,
+    raw_freshness_hours: int = Query(default=24, ge=1, le=720),
+    raw_pending_minutes: int = Query(default=60, ge=1, le=10080),
+    analytics_pending_minutes: int = Query(default=120, ge=1, le=10080),
+    limit: int = Query(default=50, ge=1, le=500),
+) -> dict[str, Any]:
+    now = datetime.now(timezone.utc)
+    stale_raw_cutoff = now - timedelta(hours=raw_freshness_hours)
+    pending_raw_cutoff = now - timedelta(minutes=raw_pending_minutes)
+    pending_analytics_cutoff = now - timedelta(minutes=analytics_pending_minutes)
+
+    target_query = db.query(CollectionTarget).filter(CollectionTarget.active.is_(True))
+    if module:
+        target_query = target_query.filter(CollectionTarget.module == module)
+    if source_name:
+        target_query = target_query.filter(CollectionTarget.source_name == source_name)
+    targets_without_recent_raw = []
+    for target in target_query.order_by(CollectionTarget.module, CollectionTarget.source_name, CollectionTarget.created_at).limit(limit).all():
+        latest_raw = (
+            db.query(RawCollection)
+            .filter(
+                RawCollection.module == target.module,
+                RawCollection.source_name == target.source_name,
+                RawCollection.collector_name == target.collector_name,
+                RawCollection.target_url == target.target_url,
+            )
+            .order_by(desc(RawCollection.collected_at))
+            .first()
+        )
+        if latest_raw and _ensure_aware(latest_raw.collected_at) >= stale_raw_cutoff:
+            continue
+        targets_without_recent_raw.append(
+            {
+                "target": _to_dict(target),
+                "latest_raw": _to_dict(latest_raw, exclude={"raw_content", "raw_json"}) if latest_raw else None,
+                "reason": "missing_raw" if latest_raw is None else "stale_raw",
+            }
+        )
+
+    raw_pending_query = db.query(RawCollection).filter(
+        RawCollection.processing_status == "normalization_pending",
+        RawCollection.collected_at < pending_raw_cutoff,
+    )
+    raw_failed_query = db.query(RawCollection).filter(RawCollection.processing_status == "normalization_failed")
+    if module:
+        raw_pending_query = raw_pending_query.filter(RawCollection.module == module)
+        raw_failed_query = raw_failed_query.filter(RawCollection.module == module)
+    if source_name:
+        raw_pending_query = raw_pending_query.filter(RawCollection.source_name == source_name)
+        raw_failed_query = raw_failed_query.filter(RawCollection.source_name == source_name)
+
+    analytics_pending_rows = []
+    for module_name, model in NORMALIZED_TABLES.items():
+        if module and module_name != module:
+            continue
+        if not hasattr(model, "analytics_status"):
+            continue
+        timestamp_column = getattr(model, "normalized_at") if hasattr(model, "normalized_at") else getattr(model, "collected_at")
+        query = db.query(model).filter(model.analytics_status == "pending", timestamp_column < pending_analytics_cutoff)
+        if source_name:
+            if model is NormalizedProduct:
+                query = query.filter(model.store_name == source_name)
+            else:
+                raw_ids = db.query(RawCollection.id).filter(RawCollection.module == module_name, RawCollection.source_name == source_name)
+                query = query.filter(model.raw_collection_id.in_(raw_ids))
+        rows = query.order_by(timestamp_column).limit(limit).all()
+        analytics_pending_rows.extend({"module": module_name, "record": _to_dict(row)} for row in rows)
+
+    collector_errors_query = db.query(CollectorError).filter(CollectorError.resolved_at.is_(None))
+    if source_name:
+        collector_errors_query = collector_errors_query.filter(CollectorError.context["source_name"].astext == source_name)
+
+    payload = {
+        "generated_at": now,
+        "thresholds": {
+            "raw_freshness_hours": raw_freshness_hours,
+            "raw_pending_minutes": raw_pending_minutes,
+            "analytics_pending_minutes": analytics_pending_minutes,
+        },
+        "targets_without_recent_raw": targets_without_recent_raw,
+        "raw_pending_too_old": [
+            _to_dict(row, exclude={"raw_content", "raw_json"})
+            for row in raw_pending_query.order_by(RawCollection.collected_at).limit(limit).all()
+        ],
+        "normalization_failures": [
+            _to_dict(row, exclude={"raw_content", "raw_json"})
+            for row in raw_failed_query.order_by(desc(RawCollection.collected_at)).limit(limit).all()
+        ],
+        "analytics_pending_too_old": analytics_pending_rows[:limit],
+        "unresolved_collector_errors": [
+            _to_dict(row)
+            for row in collector_errors_query.order_by(desc(CollectorError.created_at)).limit(limit).all()
+        ],
+    }
+    payload["summary"] = {
+        key: len(value)
+        for key, value in payload.items()
+        if isinstance(value, list)
+    }
+    payload["has_alerts"] = any(payload["summary"].values())
+    return payload
 
 
 @router.get("/operations/latest-collections")
@@ -1303,6 +1444,12 @@ def _freshness_entry(
         "raw_count": raw_count,
         "status": status,
     }
+
+
+def _ensure_aware(value: datetime) -> datetime:
+    if value.tzinfo is None:
+        return value.replace(tzinfo=timezone.utc)
+    return value
 
 
 def _parse_freshness_sla(value: str | None) -> timedelta | None:

@@ -61,6 +61,7 @@ class PoupiLegacyRawCollector:
         timeout_seconds: int = 45,
         retry_attempts: int = 2,
         retry_backoff_seconds: float = 2.0,
+        delay_seconds: float = 0.0,
     ) -> None:
         self.db = db
         self.raw = RawCollectionService(db)
@@ -68,6 +69,7 @@ class PoupiLegacyRawCollector:
         self.timeout_seconds = timeout_seconds
         self.retry_attempts = max(1, retry_attempts)
         self.retry_backoff_seconds = max(0.0, retry_backoff_seconds)
+        self.delay_seconds = max(0.0, delay_seconds)
 
     def collect_targets(self, targets: list[LegacyPoupiTarget]) -> dict[str, int]:
         run = self.raw.start_run(
@@ -84,7 +86,7 @@ class PoupiLegacyRawCollector:
         error_message: str | None = None
         retry_error_count = 0
 
-        for target in targets:
+        for index, target in enumerate(targets):
             source_name = target.source_name or self._guess_source_name(target.url)
             try:
                 payload, attempts = self._run_legacy_scraper_with_retries(target.url, source_name)
@@ -125,6 +127,9 @@ class PoupiLegacyRawCollector:
                     metadata=target.metadata,
                 )
                 logger.exception("Poupi legacy scraper failed", extra={"collector": self.collector_name, "url": target.url})
+            finally:
+                if self.delay_seconds and index < len(targets) - 1:
+                    time.sleep(self.delay_seconds)
 
         status = RunStatus.success if errors == 0 else RunStatus.partial if raw_saved else RunStatus.failed
         self.raw.finish_run(
@@ -140,6 +145,7 @@ class PoupiLegacyRawCollector:
             "retry_error_count": retry_error_count,
             "max_attempts": self.retry_attempts,
             "retry_backoff_seconds": self.retry_backoff_seconds,
+            "delay_seconds": self.delay_seconds,
             "collector_version": self.collector_version,
             "raw_schema_name": self.raw_schema_name,
             "raw_schema_version": self.raw_schema_version,

@@ -145,7 +145,12 @@ def run_collection_targets_job(
     source: str | None = None,
     collector_name: str | None = None,
     limit: int = 100,
-) -> dict[str, int]:
+    max_targets: int | None = None,
+    delay_seconds: float = 0.0,
+    timeout_seconds: int | None = None,
+    dry_run: bool = False,
+    list_only: bool = False,
+) -> dict[str, object]:
     ensure_default_collection_targets()
     db = SessionLocal()
     try:
@@ -156,7 +161,29 @@ def run_collection_targets_job(
             query = query.filter(CollectionTarget.source_name == source)
         if collector_name:
             query = query.filter(CollectionTarget.collector_name == collector_name)
-        targets = query.order_by(CollectionTarget.created_at).limit(limit).all()
+        target_limit = max_targets if max_targets is not None else limit
+        targets = query.order_by(CollectionTarget.created_at).limit(target_limit).all()
+        target_rows = [
+            {
+                "id": str(target.id),
+                "module": target.module,
+                "source_name": target.source_name,
+                "collector_name": target.collector_name,
+                "target_url": target.target_url,
+            }
+            for target in targets
+        ]
+        if dry_run or list_only:
+            return {
+                "targets": len(targets),
+                "raw_saved_count": 0,
+                "error_count": 0,
+                "skipped_locked": 0,
+                "dry_run": dry_run,
+                "list_only": list_only,
+                "target_limit": target_limit,
+                "targets_detail": target_rows,
+            }
         grouped: dict[str, list[CollectionTarget]] = defaultdict(list)
         for target in targets:
             grouped[target.collector_name].append(target)
@@ -178,19 +205,32 @@ def run_collection_targets_job(
             if not available_targets:
                 continue
             if selected_collector_name == "poupi_legacy_raw_collector":
-                raw_saved += _run_poupi_legacy_targets(db, available_targets)
+                raw_saved += _run_poupi_legacy_targets(
+                    db,
+                    available_targets,
+                    delay_seconds=delay_seconds,
+                    timeout_seconds=timeout_seconds,
+                )
             else:
                 logger.warning(
                     "Collection target collector is not supported by target runner",
                     extra={"collector": selected_collector_name},
                 )
                 errors += len(available_targets)
-        return {"targets": len(targets), "raw_saved_count": raw_saved, "error_count": errors, "skipped_locked": skipped_locked}
+        return {
+            "targets": len(targets),
+            "raw_saved_count": raw_saved,
+            "error_count": errors,
+            "skipped_locked": skipped_locked,
+            "dry_run": False,
+            "list_only": False,
+            "target_limit": target_limit,
+        }
     finally:
         db.close()
 
 
-def run_poupi_legacy_targets_job(source: str | None = None, limit: int = 100) -> dict[str, int]:
+def run_poupi_legacy_targets_job(source: str | None = None, limit: int = 100) -> dict[str, object]:
     result = run_collection_targets_job(
         module="ecommerce",
         source=source,
@@ -201,10 +241,22 @@ def run_poupi_legacy_targets_job(source: str | None = None, limit: int = 100) ->
     return result
 
 
-def _run_poupi_legacy_targets(db, targets: list[CollectionTarget]) -> int:
+def _run_poupi_legacy_targets(
+    db,
+    targets: list[CollectionTarget],
+    *,
+    delay_seconds: float = 0.0,
+    timeout_seconds: int | None = None,
+) -> int:
     from app.modules.ecommerce.collectors.poupi_legacy_collector import LegacyPoupiTarget, PoupiLegacyRawCollector
 
-    collector = PoupiLegacyRawCollector(db, timeout_seconds=180, retry_attempts=2, retry_backoff_seconds=3)
+    collector = PoupiLegacyRawCollector(
+        db,
+        timeout_seconds=timeout_seconds or 180,
+        retry_attempts=2,
+        retry_backoff_seconds=3,
+        delay_seconds=delay_seconds,
+    )
     result = collector.collect_targets(
         [
             LegacyPoupiTarget(
