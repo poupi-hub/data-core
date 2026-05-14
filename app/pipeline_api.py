@@ -285,6 +285,76 @@ def collection_coverage(
     limit: int = Query(default=500, ge=1, le=1000),
     offset: int = Query(default=0, ge=0),
 ) -> dict[str, Any]:
+    return _collection_coverage_payload(
+        db,
+        module=module,
+        source_name=source_name,
+        collector_name=collector_name,
+        active=active,
+        limit=limit,
+        offset=offset,
+    )
+
+
+@router.get("/operations/source-quality")
+def source_quality(
+    db: Session = Depends(db_session),
+    module: str | None = None,
+    source_name: str | None = None,
+    collector_name: str | None = None,
+    limit: int = Query(default=500, ge=1, le=1000),
+    offset: int = Query(default=0, ge=0),
+) -> dict[str, Any]:
+    coverage = _collection_coverage_payload(
+        db,
+        module=module,
+        source_name=source_name,
+        collector_name=collector_name,
+        active=None,
+        limit=limit,
+        offset=offset,
+    )
+    sources = []
+    for item in coverage["sources"]:
+        active_targets = item["active_target_count"]
+        raw_count = item["raw_count"]
+        normalized_count = item["normalized_count"]
+        analytics_count = item["analytics_count"]
+        sources.append(
+            {
+                **item,
+                "active_readiness_rate": _rate(item["ready_target_count"], active_targets),
+                "raw_to_normalized_rate": _rate(normalized_count, raw_count),
+                "normalized_to_analytics_rate": _rate(analytics_count, normalized_count),
+                "health_status": "ok"
+                if active_targets > 0 and item["ready_target_count"] == active_targets and item["blocked_target_count"] == 0
+                else "standby"
+                if active_targets == 0 and item["candidate_target_count"] > 0
+                else "attention",
+            }
+        )
+    summary = coverage["summary"]
+    return {
+        "summary": {
+            **summary,
+            "active_readiness_rate": _rate(summary["ready_active_target_count"], summary["active_target_count"]),
+            "raw_to_normalized_rate": _rate(summary["normalized_count"], summary["raw_count"]),
+            "normalized_to_analytics_rate": _rate(summary["analytics_count"], summary["normalized_count"]),
+        },
+        "sources": sorted(sources, key=lambda item: (item["health_status"], item["module"], item["source_name"])),
+    }
+
+
+def _collection_coverage_payload(
+    db: Session,
+    *,
+    module: str | None = None,
+    source_name: str | None = None,
+    collector_name: str | None = None,
+    active: bool | None = None,
+    limit: int = 500,
+    offset: int = 0,
+) -> dict[str, Any]:
     ensure_default_collection_targets()
     query = db.query(CollectionTarget)
     if module:
@@ -350,6 +420,12 @@ def collection_coverage(
         "sources": sorted(by_source.values(), key=lambda item: (item["module"], item["source_name"])),
         "targets": rows,
     }
+
+
+def _rate(numerator: int, denominator: int) -> float | None:
+    if denominator <= 0:
+        return None
+    return round(numerator / denominator, 4)
 
 
 def _collection_target_status_payload(db: Session, target: CollectionTarget, *, compact: bool = False) -> dict[str, Any]:

@@ -2,6 +2,7 @@ import json
 import logging
 import shutil
 import subprocess
+import time
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -58,11 +59,15 @@ class PoupiLegacyRawCollector:
         *,
         backend_dir: Path | None = None,
         timeout_seconds: int = 45,
+        retry_attempts: int = 2,
+        retry_backoff_seconds: float = 2.0,
     ) -> None:
         self.db = db
         self.raw = RawCollectionService(db)
         self.backend_dir = backend_dir or self._default_backend_dir()
         self.timeout_seconds = timeout_seconds
+        self.retry_attempts = max(1, retry_attempts)
+        self.retry_backoff_seconds = max(0.0, retry_backoff_seconds)
 
     def collect_targets(self, targets: list[LegacyPoupiTarget]) -> dict[str, int]:
         run = self.raw.start_run(
@@ -77,11 +82,13 @@ class PoupiLegacyRawCollector:
         raw_saved = 0
         errors = 0
         error_message: str | None = None
+        retry_error_count = 0
 
         for target in targets:
             source_name = target.source_name or self._guess_source_name(target.url)
             try:
-                payload = self._run_legacy_scraper(target.url, source_name)
+                payload, attempts = self._run_legacy_scraper_with_retries(target.url, source_name)
+                retry_error_count += max(attempts - 1, 0)
                 raw = self.raw.save_json(
                     module=self.module,
                     source_name=source_name,
@@ -95,6 +102,8 @@ class PoupiLegacyRawCollector:
                     raw_json=payload,
                     metadata={
                         "legacy_backend_dir": str(self.backend_dir),
+                        "attempt_count": attempts,
+                        "max_attempts": self.retry_attempts,
                         **target.metadata,
                     },
                 )
@@ -128,12 +137,41 @@ class PoupiLegacyRawCollector:
         run.metadata_json = {
             **(run.metadata_json or {}),
             "duplicate_raw_count": max(len(targets) - raw_saved - errors, 0),
+            "retry_error_count": retry_error_count,
+            "max_attempts": self.retry_attempts,
+            "retry_backoff_seconds": self.retry_backoff_seconds,
             "collector_version": self.collector_version,
             "raw_schema_name": self.raw_schema_name,
             "raw_schema_version": self.raw_schema_version,
         }
         self.db.commit()
         return {"raw_saved_count": raw_saved, "error_count": errors}
+
+    def _run_legacy_scraper_with_retries(self, url: str, source_name: str) -> tuple[dict[str, Any], int]:
+        last_error: Exception | None = None
+        for attempt in range(1, self.retry_attempts + 1):
+            try:
+                return self._run_legacy_scraper(url, source_name), attempt
+            except Exception as exc:
+                last_error = exc
+                if attempt >= self.retry_attempts:
+                    break
+                sleep_seconds = self.retry_backoff_seconds * attempt
+                logger.warning(
+                    "Poupi legacy scraper attempt failed; retrying",
+                    extra={
+                        "collector": self.collector_name,
+                        "source_name": source_name,
+                        "url": url,
+                        "attempt": attempt,
+                        "max_attempts": self.retry_attempts,
+                        "sleep_seconds": sleep_seconds,
+                    },
+                )
+                if sleep_seconds:
+                    time.sleep(sleep_seconds)
+        assert last_error is not None
+        raise last_error
 
     def _run_legacy_scraper(self, url: str, source_name: str) -> dict[str, Any]:
         command = [

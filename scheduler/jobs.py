@@ -194,7 +194,7 @@ def run_poupi_legacy_targets_job(source: str | None = None, limit: int = 100) ->
 def _run_poupi_legacy_targets(db, targets: list[CollectionTarget]) -> int:
     from app.modules.ecommerce.collectors.poupi_legacy_collector import LegacyPoupiTarget, PoupiLegacyRawCollector
 
-    collector = PoupiLegacyRawCollector(db, timeout_seconds=180)
+    collector = PoupiLegacyRawCollector(db, timeout_seconds=180, retry_attempts=2, retry_backoff_seconds=3)
     result = collector.collect_targets(
         [
             LegacyPoupiTarget(

@@ -44,6 +44,34 @@
     },
     {
       "module": "ecommerce",
+      "source_name": "drogasil",
+      "collector_name": "poupi_legacy_raw_collector",
+      "target_url": "https://www.drogasil.com.br/fralda-pampers-supersec-g-26-unidades-891311.html",
+      "active": true,
+      "metadata_json": {
+        "kind": "production_target",
+        "owner": "data-platform",
+        "category": "baby",
+        "priority": "normal",
+        "product_seed": "pampers_supersec_g_26"
+      }
+    },
+    {
+      "module": "ecommerce",
+      "source_name": "drogasil",
+      "collector_name": "poupi_legacy_raw_collector",
+      "target_url": "https://www.drogasil.com.br/fralda-pampers-premium-care-pants-xg-com-26un-1143334.html",
+      "active": true,
+      "metadata_json": {
+        "kind": "production_target",
+        "owner": "data-platform",
+        "category": "baby",
+        "priority": "normal",
+        "product_seed": "pampers_premium_care_pants_xg_26"
+      }
+    },
+    {
+      "module": "ecommerce",
       "source_name": "drogaraia",
       "collector_name": "poupi_legacy_raw_collector",
       "target_url": "https://www.drogaraia.com.br/fralda-pampers-confort-sec-xxxg-44-unidades-pampers-1351898.html",
@@ -87,6 +115,48 @@
     },
     {
       "module": "ecommerce",
+      "source_name": "drogaraia",
+      "collector_name": "poupi_legacy_raw_collector",
+      "target_url": "https://www.drogaraia.com.br/fralda-pampers-supersec-g-26-unidades-891311.html",
+      "active": true,
+      "metadata_json": {
+        "kind": "production_target",
+        "owner": "data-platform",
+        "category": "baby",
+        "priority": "normal",
+        "product_seed": "pampers_supersec_g_26"
+      }
+    },
+    {
+      "module": "ecommerce",
+      "source_name": "drogaraia",
+      "collector_name": "poupi_legacy_raw_collector",
+      "target_url": "https://www.drogaraia.com.br/kit-2-fraldas-pampers-supersec-g-26-unidades-666396.html",
+      "active": true,
+      "metadata_json": {
+        "kind": "production_target",
+        "owner": "data-platform",
+        "category": "baby",
+        "priority": "normal",
+        "product_seed": "pampers_supersec_g_26_kit_2"
+      }
+    },
+    {
+      "module": "ecommerce",
+      "source_name": "drogaraia",
+      "collector_name": "poupi_legacy_raw_collector",
+      "target_url": "https://www.drogaraia.com.br/fralda-pampers-premium-care-pants-xg-com-26un-1143334.html",
+      "active": true,
+      "metadata_json": {
+        "kind": "production_target",
+        "owner": "data-platform",
+        "category": "baby",
+        "priority": "normal",
+        "product_seed": "pampers_premium_care_pants_xg_26"
+      }
+    },
+    {
+      "module": "ecommerce",
       "source_name": "paguemenos",
       "collector_name": "poupi_legacy_raw_collector",
       "target_url": "https://www.paguemenos.com.br/fralda-descartavel-infantil-pampers-confort-sec-xxxg-mais-de-19kg-pacote-44-unidades-leve-mais-pague-menos/p",
@@ -111,6 +181,34 @@
         "category": "baby",
         "priority": "normal",
         "product_seed": "pampers_premium_care_pants_m_78"
+      }
+    },
+    {
+      "module": "ecommerce",
+      "source_name": "paguemenos",
+      "collector_name": "poupi_legacy_raw_collector",
+      "target_url": "https://www.paguemenos.com.br/fralda-pampers-confort-sec-p-72-unidades/p",
+      "active": true,
+      "metadata_json": {
+        "kind": "production_target",
+        "owner": "data-platform",
+        "category": "baby",
+        "priority": "normal",
+        "product_seed": "pampers_confort_sec_p_72"
+      }
+    },
+    {
+      "module": "ecommerce",
+      "source_name": "paguemenos",
+      "collector_name": "poupi_legacy_raw_collector",
+      "target_url": "https://www.paguemenos.com.br/fraldas-pampers-supersec-p-34-unidades/p",
+      "active": true,
+      "metadata_json": {
+        "kind": "production_target",
+        "owner": "data-platform",
+        "category": "baby",
+        "priority": "normal",
+        "product_seed": "pampers_supersec_p_34"
       }
     },
     {

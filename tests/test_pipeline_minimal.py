@@ -366,6 +366,29 @@ def test_collection_coverage_endpoint_reports_active_and_candidate_targets(db_se
     assert "pytest candidate" in payload["targets"][0]["issues"]
 
 
+def test_source_quality_endpoint_reports_rates(db_session, api_client):
+    source = f"pytest-quality-{uuid4()}"
+    db_session.add(
+        CollectionTarget(
+            module="ecommerce",
+            source_name=source,
+            collector_name="poupi_legacy_raw_collector",
+            target_url=f"https://example.test/{uuid4()}",
+            active=True,
+            metadata_json={"pytest": True},
+        )
+    )
+    db_session.commit()
+
+    response = api_client.get(f"/api/v1/operations/source-quality?source_name={source}")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["summary"]["active_target_count"] == 1
+    assert payload["summary"]["active_readiness_rate"] == 0
+    assert payload["sources"][0]["health_status"] == "attention"
+
+
 def test_collector_error_resolution_endpoint(db_session, api_client):
     error = CollectorError(
         collector_name=f"pytest-collector-{uuid4()}",
