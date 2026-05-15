@@ -16,11 +16,19 @@ scrape_configs:
       - targets: ["api:8000"]
     metrics_path: /metrics
 
-  # Poupi-baby backend — runs on a separate compose network.
-  # host.docker.internal resolves to the Docker host and works when poupi-baby
-  # is started locally alongside data-core. Replace the target if both are on
-  # a shared Docker network (e.g. "poupi-backend:3001").
+  - job_name: poupi-jobs-api
+    static_configs:
+      - targets: ["poupi-jobs-api:8001"]
+    metrics_path: /metrics
+
+  - job_name: poupi-crypto-api
+    static_configs:
+      - targets: ["poupi-crypto-api:8002"]
+    metrics_path: /metrics
+
+  # poupi-baby usa alias "poupi-baby-backend" na rede compartilhada "poupi-monitoring".
+  # Requer: docker network create poupi-monitoring (uma vez no servidor).
   - job_name: poupi-baby-backend
     static_configs:
-      - targets: ["host.docker.internal:3001"]
+      - targets: ["poupi-baby-backend:3001"]
     metrics_path: /metrics
