@@ -17,6 +17,12 @@ RUN pip install --upgrade pip && pip install -r requirements.txt
 
 COPY . .
 
+RUN useradd -m -u 1000 appuser \
+    && chown -R appuser:appuser /app \
+    && find /ms-playwright -type d -exec chmod o+rx {} + 2>/dev/null || true
+
+USER appuser
+
 EXPOSE 8000
 
 CMD ["sh", "-c", "alembic upgrade head && uvicorn app.main:create_app --factory --host 0.0.0.0 --port 8000"]

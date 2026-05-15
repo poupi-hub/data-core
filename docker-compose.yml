@@ -23,6 +23,7 @@ services:
       - ./runtime-logs:/app/runtime-logs
       - ./runtime-data:/app/runtime-data
     command: sh -c "alembic upgrade head && uvicorn app.main:create_app --factory --host 0.0.0.0 --port 8000"
+    restart: unless-stopped
     healthcheck:
       test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8000/health', timeout=5).read()\""]
       interval: 10s
@@ -53,6 +54,7 @@ services:
       - ./runtime-logs:/app/runtime-logs
       - ./runtime-data:/app/runtime-data
     command: sh -c "python -m app.jobs.scheduler_runner"
+    restart: unless-stopped
 
   worker:
     image: data-core-api
@@ -76,6 +78,7 @@ services:
       - ./runtime-logs:/app/runtime-logs
       - ./runtime-data:/app/runtime-data
     command: sh -c "python -m app.jobs.worker --interval $${WORKER_PIPELINE_INTERVAL_SECONDS}"
+    restart: unless-stopped
 
   tests:
     image: data-core-api
@@ -99,11 +102,12 @@ services:
     environment:
       POSTGRES_DB: data_core
       POSTGRES_USER: data_core
-      POSTGRES_PASSWORD: data_core
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-data_core}
     ports:
       - "5433:5432"
     volumes:
       - postgres-data:/var/lib/postgresql/data
+    restart: unless-stopped
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U data_core -d data_core"]
       interval: 5s
@@ -114,6 +118,7 @@ services:
     image: redis:7-alpine
     ports:
       - "6379:6379"
+    restart: unless-stopped
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 5s
@@ -133,6 +138,10 @@ services:
     depends_on:
       - api
       - alertmanager
+    restart: unless-stopped
+    networks:
+      - default
+      - poupi-monitoring
 
   alertmanager:
     image: prom/alertmanager:v0.27.0
@@ -143,13 +152,14 @@ services:
     command:
       - "--config.file=/etc/alertmanager/alertmanager.yml"
       - "--storage.path=/alertmanager"
+    restart: unless-stopped
 
   grafana:
     image: grafana/grafana:10.4.3
     ports:
       - "3000:3000"
     environment:
-      GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-admin}
       GF_USERS_ALLOW_SIGN_UP: "false"
     volumes:
       - grafana-data:/var/lib/grafana
@@ -157,7 +167,13 @@ services:
       - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
     depends_on:
       - prometheus
+    restart: unless-stopped
 
 volumes:
   postgres-data:
   grafana-data:
+
+networks:
+  poupi-monitoring:
+    external: true
+    name: poupi-monitoring
