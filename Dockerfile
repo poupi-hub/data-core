@@ -17,11 +17,10 @@ RUN pip install --upgrade pip && pip install -r requirements.txt
 
 COPY . .
 
-RUN useradd -m -u 1000 appuser \
-    && chown -R appuser:appuser /app \
+RUN chown -R 1000:1000 /app \
     && find /ms-playwright -type d -exec chmod o+rx {} + 2>/dev/null || true
 
-USER appuser
+USER 1000:1000
 
 EXPOSE 8000
 
