@@ -5,13 +5,13 @@ from uuid import uuid4
 import pytest
 from fastapi.testclient import TestClient
 
-from app.analytics.models import ProductPriceAnalytics
+from app.analytics.models import ProductPriceAnalytics, TradingAnalytics
 from app.data_quality.models import DataQualityRun
 from app.data_quality.services import DataQualityService
 from app.documentation.models import DataContract, DataLineage, DataOwner, DataSla
 from app.documentation.services import DocumentationService
 from app.modules.ecommerce.normalizers.poupi_legacy_scraped_product_v1_normalizer import PoupiLegacyScrapedProductV1Normalizer
-from app.normalization.models import NormalizedProduct
+from app.normalization.models import NormalizedMarketCandle, NormalizedProduct
 from app.raw.models import CollectorVersion, RawCollection
 from app.raw.service import RawCollectionService
 from database.models import CollectionRun, CollectionTarget, CollectorError, RunStatus
@@ -992,10 +992,25 @@ def test_cleanup_stale_runs_marks_old_running_as_failed(db_session):
 def test_alert_webhook_job_posts_when_has_alerts(db_session, monkeypatch):
     """alert_webhook_job deve chamar send_webhook quando has_alerts=True."""
     from core.config import settings
+    import app.pipeline_api as pipeline_api
     import notifications.webhook as webhook_module
     from scheduler.jobs import alert_webhook_job
 
     monkeypatch.setattr(settings, "alert_webhook_url", "https://hooks.example.test/poupi")
+    monkeypatch.setattr(
+        pipeline_api,
+        "_build_alerts_payload",
+        lambda **_: {
+            "has_alerts": True,
+            "summary": {
+                "targets_without_recent_raw": 1,
+                "raw_pending_too_old": 0,
+                "normalization_failures": 0,
+                "analytics_pending_too_old": 0,
+                "unresolved_collector_errors": 0,
+            },
+        },
+    )
 
     posted_payloads: list[dict] = []
 
@@ -1032,10 +1047,25 @@ def test_alert_webhook_job_posts_when_has_alerts(db_session, monkeypatch):
 def test_alert_webhook_job_skips_when_no_alerts(db_session, monkeypatch):
     """alert_webhook_job não deve chamar send_webhook quando não há alertas."""
     from core.config import settings
+    import app.pipeline_api as pipeline_api
     import notifications.webhook as webhook_module
     from scheduler.jobs import alert_webhook_job
 
     monkeypatch.setattr(settings, "alert_webhook_url", "https://hooks.example.test/poupi")
+    monkeypatch.setattr(
+        pipeline_api,
+        "_build_alerts_payload",
+        lambda **_: {
+            "has_alerts": False,
+            "summary": {
+                "targets_without_recent_raw": 0,
+                "raw_pending_too_old": 0,
+                "normalization_failures": 0,
+                "analytics_pending_too_old": 0,
+                "unresolved_collector_errors": 0,
+            },
+        },
+    )
 
     posted_payloads: list[dict] = []
 
@@ -1313,7 +1343,6 @@ def test_price_feed_end_to_end_raw_to_api_response(db_session, api_client):
     collected in the raw layer surfaces in /api/v1/poupi-baby/price-feed within the
     same test transaction so poupi-baby can pick it up on sync.
     """
-    from app.analytics.services import AnalyticsService
     from app.modules.ecommerce.analytics.price_processor import ProductPriceAnalyticsProcessor
 
     source = f"pytest-e2e-{uuid4().hex[:8]}"
@@ -1322,20 +1351,22 @@ def test_price_feed_end_to_end_raw_to_api_response(db_session, api_client):
 
     # 1. Save raw product (as PoupiLegacyRawCollector would)
     raw_svc = RawCollectionService(db_session)
-    raw = raw_svc.save(
+    raw = raw_svc.save_json(
         module="ecommerce",
         source_name=source,
         collector_name="poupi_legacy_raw_collector",
-        raw_schema_name="PoupiLegacyScrapedProductV1",
-        raw_schema_version="1",
-        payload={
-            "title": "Fralda E2E Teste",
-            "price": price,
-            "currency": "BRL",
-            "availability": "in_stock",
-            "store_name": source,
-            "source_id": canonical_id,
-            "url": f"https://example.com/{canonical_id}",
+        raw_schema_name="scrapedProduct",
+        raw_schema_version="1.0.0",
+        raw_json={
+            "scrapedProduct": {
+                "title": "Fralda E2E Teste",
+                "price": price,
+                "currency": "BRL",
+                "availability": "in_stock",
+                "store_name": source,
+                "source_id": canonical_id,
+                "url": f"https://example.com/{canonical_id}",
+            }
         },
     )
     db_session.flush()
@@ -1390,6 +1421,94 @@ def test_price_feed_end_to_end_raw_to_api_response(db_session, api_client):
         assert paged_data["next_cursor"] is not None, "next_cursor must be set when count > limit"
 
 
+def test_crypto_ohlcv_reuses_data_core_pipeline_to_signals_feed(db_session, api_client):
+    """Crypto OHLCV deve virar candle normalizado, analytics e feed para consumidor externo."""
+    from app.modules.crypto.normalizers.snapshot_normalizer import CryptoSnapshotNormalizer
+    from app.modules.trading.analytics.processor import TradingAnalyticsProcessor
+
+    source = f"pytest-crypto-{uuid4().hex[:8]}"
+    symbol = "BTC/USDT"
+    timeframe = "15m"
+    base_time = datetime.now(timezone.utc) - timedelta(hours=10)
+    raw_service = RawCollectionService(db_session)
+
+    for i in range(40):
+        close = 100.0 + i
+        raw_service.save_json(
+            module="crypto",
+            source_name=source,
+            collector_name="crypto.crypto_coin_ohlcv",
+            raw_schema_name="marketCandle",
+            raw_schema_version="1.0.0",
+            raw_json={
+                "symbol": symbol,
+                "exchange": "binance",
+                "timeframe": timeframe,
+                "timestamp": (base_time + timedelta(minutes=15 * i)).isoformat(),
+                "open": close - 0.5,
+                "high": close + 1.0,
+                "low": close - 1.0,
+                "close": close,
+                "volume": 1000 + i * 10,
+            },
+            source_id=f"{symbol}:{timeframe}:{i}",
+        )
+    db_session.commit()
+
+    normalizer_result = CryptoSnapshotNormalizer(db_session).run(limit=100)
+    db_session.expire_all()
+    assert normalizer_result.normalized >= 40
+
+    latest_candle = (
+        db_session.query(NormalizedMarketCandle)
+        .filter(
+            NormalizedMarketCandle.source == source,
+            NormalizedMarketCandle.symbol == symbol,
+            NormalizedMarketCandle.timeframe == timeframe,
+        )
+        .order_by(NormalizedMarketCandle.timestamp.desc())
+        .first()
+    )
+    assert latest_candle is not None
+    assert float(latest_candle.close) == 139.0
+
+    analytics_result = TradingAnalyticsProcessor(db_session).run(limit=100)
+    db_session.commit()
+    assert analytics_result.processed >= 40
+
+    latest_signal = (
+        db_session.query(TradingAnalytics)
+        .filter(TradingAnalytics.market_candle_id == latest_candle.id)
+        .first()
+    )
+    assert latest_signal is not None
+    assert latest_signal.signal is not None
+    assert latest_signal.confidence is not None
+    assert latest_signal.atr is not None
+
+    candles_response = api_client.get(
+        "/api/v1/crypto/candles-feed",
+        params={"source": source, "symbol": symbol, "timeframe": timeframe, "since_hours": 24, "limit": 2},
+    )
+    assert candles_response.status_code == 200
+    candles_payload = candles_response.json()
+    assert candles_payload["count"] == 2
+    assert candles_payload["next_cursor"] is not None
+    assert candles_payload["items"][0]["close"] == 139.0
+
+    signals_response = api_client.get(
+        "/api/v1/crypto/signals-feed",
+        params={"source": source, "symbol": symbol, "timeframe": timeframe, "since_hours": 24, "limit": 2},
+    )
+    assert signals_response.status_code == 200
+    signals_payload = signals_response.json()
+    assert signals_payload["count"] == 2
+    assert signals_payload["next_cursor"] is not None
+    assert signals_payload["items"][0]["market_candle_id"] == str(latest_candle.id)
+    assert signals_payload["items"][0]["signal"] == latest_signal.signal
+    assert signals_payload["items"][0]["confidence"] == latest_signal.confidence
+
+
 def _cleanup_pytest_records(db_session) -> None:
     product_ids = [
         row[0]
@@ -1403,11 +1522,36 @@ def _cleanup_pytest_records(db_session) -> None:
         .filter(RawCollection.source_name.like("pytest-%"))
         .all()
     ]
+    candle_ids = [
+        row[0]
+        for row in db_session.query(NormalizedMarketCandle.id)
+        .filter(NormalizedMarketCandle.source.like("pytest-%"))
+        .all()
+    ]
+    trading_ids = []
+    if candle_ids:
+        trading_ids = [
+            row[0]
+            for row in db_session.query(TradingAnalytics.id)
+            .filter(TradingAnalytics.market_candle_id.in_(candle_ids))
+            .all()
+        ]
     if product_ids:
         db_session.query(ProductPriceAnalytics).filter(ProductPriceAnalytics.product_id.in_(product_ids)).delete(
             synchronize_session=False
         )
         db_session.query(DataLineage).filter(DataLineage.normalized_record_id.in_(product_ids)).delete(
+            synchronize_session=False
+        )
+    if trading_ids:
+        db_session.query(DataLineage).filter(DataLineage.analytics_record_id.in_(trading_ids)).delete(
+            synchronize_session=False
+        )
+    if candle_ids:
+        db_session.query(DataLineage).filter(DataLineage.normalized_record_id.in_(candle_ids)).delete(
+            synchronize_session=False
+        )
+        db_session.query(TradingAnalytics).filter(TradingAnalytics.market_candle_id.in_(candle_ids)).delete(
             synchronize_session=False
         )
     if raw_ids:
@@ -1422,6 +1566,7 @@ def _cleanup_pytest_records(db_session) -> None:
     db_session.query(DataOwner).filter(DataOwner.owner_name.like("pytest-%")).delete(synchronize_session=False)
     db_session.query(DataSla).filter(DataSla.source_name.like("pytest-%")).delete(synchronize_session=False)
     db_session.query(NormalizedProduct).filter(NormalizedProduct.store_name.like("pytest-%")).delete(synchronize_session=False)
+    db_session.query(NormalizedMarketCandle).filter(NormalizedMarketCandle.source.like("pytest-%")).delete(synchronize_session=False)
     db_session.query(RawCollection).filter(RawCollection.source_name.like("pytest-%")).delete(synchronize_session=False)
     db_session.query(CollectorVersion).filter(CollectorVersion.source_name.like("pytest-%")).delete(synchronize_session=False)
     db_session.commit()

@@ -50,6 +50,31 @@ def _target(db, active: bool = True) -> CollectionTarget:
 
 
 @pytest.fixture(autouse=True)
+def _cleanup_circuit_test_records(db_session):
+    db_session.query(CollectorError).filter(CollectorError.collector_name == SOURCE).delete(synchronize_session=False)
+    db_session.query(CollectionTarget).filter(
+        CollectionTarget.module == MODULE,
+        CollectionTarget.source_name == SOURCE,
+    ).delete(synchronize_session=False)
+    db_session.query(CollectionRun).filter(
+        CollectionRun.module == MODULE,
+        CollectionRun.source_name == SOURCE,
+    ).delete(synchronize_session=False)
+    db_session.commit()
+    yield
+    db_session.query(CollectorError).filter(CollectorError.collector_name == SOURCE).delete(synchronize_session=False)
+    db_session.query(CollectionTarget).filter(
+        CollectionTarget.module == MODULE,
+        CollectionTarget.source_name == SOURCE,
+    ).delete(synchronize_session=False)
+    db_session.query(CollectionRun).filter(
+        CollectionRun.module == MODULE,
+        CollectionRun.source_name == SOURCE,
+    ).delete(synchronize_session=False)
+    db_session.commit()
+
+
+@pytest.fixture(autouse=True)
 def _patch_side_effects():
     with (
         patch("scheduler.circuit_breaker.send_webhook") as mock_webhook,

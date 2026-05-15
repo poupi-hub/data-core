@@ -176,7 +176,7 @@ def test_collect_targets_saves_raw_records_on_success(db_session):
 def test_collect_targets_counts_errors_individually(db_session):
     collector = _collector(db_session, retries=1)
     targets = [
-        LegacyPoupiTarget(url="https://drogasil.com.br/produto/1", source_name="drogasil"),
+        LegacyPoupiTarget(url="https://drogasil.com.br/produto/error-1", source_name="drogasil"),
         LegacyPoupiTarget(url="https://nissei.com.br/produto/2", source_name="nissei"),
     ]
 
@@ -232,7 +232,7 @@ def test_legacy_scraper_command_uses_ts_node_when_no_compiled_js(tmp_path):
     cmd = collector._legacy_scraper_command("https://drogasil.com.br/produto/1", "drogasil")
 
     assert "ts-node" in cmd
-    assert "raw-bridge.ts" in cmd
+    assert any("raw-bridge.ts" in item for item in cmd)
 
 
 # ---------------------------------------------------------------------------

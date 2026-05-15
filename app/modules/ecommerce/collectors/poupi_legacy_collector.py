@@ -18,7 +18,7 @@ logger = logging.getLogger(__name__)
 
 POUPI_LEGACY_SCRAPERS = [
     "amazon",
-    "mercadolivre",
+    # "mercadolivre",  # scraper instável — excluído temporariamente
     "kabum",
     "magalu",
     "drogasil",

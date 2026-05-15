@@ -2,7 +2,7 @@
   "title": "data-core",
   "uid": "data-core-main",
   "schemaVersion": 38,
-  "version": 1,
+  "version": 2,
   "refresh": "30s",
   "panels": [
     {
@@ -62,6 +62,139 @@
         {
           "expr": "increase(http_requests_total{handler=\"/api/collection-targets\", method=\"GET\"}[1h])",
           "legendFormat": "requests/h"
+        }
+      ]
+    },
+
+    {
+      "id": 6,
+      "title": "Circuit Breakers Abertos",
+      "type": "stat",
+      "gridPos": { "x": 0, "y": 16, "w": 6, "h": 4 },
+      "options": {
+        "colorMode": "background",
+        "thresholds": {
+          "steps": [
+            { "color": "green", "value": 0 },
+            { "color": "red",   "value": 1 }
+          ]
+        }
+      },
+      "targets": [
+        {
+          "expr": "circuit_breaker_open_sources",
+          "legendFormat": "fontes abertas"
+        }
+      ]
+    },
+    {
+      "id": 7,
+      "title": "Circuit Breaker Trips (última hora)",
+      "type": "stat",
+      "gridPos": { "x": 6, "y": 16, "w": 6, "h": 4 },
+      "options": {
+        "colorMode": "background",
+        "thresholds": {
+          "steps": [
+            { "color": "green", "value": 0 },
+            { "color": "orange", "value": 1 },
+            { "color": "red",    "value": 3 }
+          ]
+        }
+      },
+      "targets": [
+        {
+          "expr": "increase(circuit_breaker_opens_total[1h])",
+          "legendFormat": "trips/h"
+        }
+      ]
+    },
+    {
+      "id": 8,
+      "title": "Circuit Breaker Trips por Fonte",
+      "type": "timeseries",
+      "gridPos": { "x": 12, "y": 16, "w": 12, "h": 8 },
+      "targets": [
+        {
+          "expr": "increase(circuit_breaker_opens_total[30m])",
+          "legendFormat": "{{module}}/{{source_name}}"
+        }
+      ]
+    },
+
+    {
+      "id": 9,
+      "title": "Dead Letters Não Resolvidos",
+      "type": "stat",
+      "gridPos": { "x": 0, "y": 20, "w": 6, "h": 4 },
+      "options": {
+        "colorMode": "background",
+        "thresholds": {
+          "steps": [
+            { "color": "green",  "value": 0 },
+            { "color": "orange", "value": 1 },
+            { "color": "red",    "value": 5 }
+          ]
+        }
+      },
+      "targets": [
+        {
+          "expr": "job_dead_letters_unresolved",
+          "legendFormat": "dead letters"
+        }
+      ]
+    },
+    {
+      "id": 10,
+      "title": "Dead Letters por Job (última hora)",
+      "type": "timeseries",
+      "gridPos": { "x": 6, "y": 20, "w": 18, "h": 8 },
+      "targets": [
+        {
+          "expr": "increase(job_dead_letters_total[1h])",
+          "legendFormat": "{{job_name}}"
+        }
+      ]
+    },
+
+    {
+      "id": 11,
+      "title": "Sync poupi-baby — Duração (p95, s)",
+      "type": "stat",
+      "gridPos": { "x": 0, "y": 28, "w": 6, "h": 4 },
+      "options": {
+        "thresholds": {
+          "steps": [
+            { "color": "green",  "value": 0 },
+            { "color": "orange", "value": 30 },
+            { "color": "red",    "value": 120 }
+          ]
+        }
+      },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, rate(poupi_data_core_sync_duration_seconds_bucket[30m]))",
+          "legendFormat": "p95 duração"
+        }
+      ]
+    },
+    {
+      "id": 12,
+      "title": "Sync poupi-baby — Itens por Run",
+      "type": "timeseries",
+      "gridPos": { "x": 6, "y": 28, "w": 18, "h": 8 },
+      "targets": [
+        {
+          "expr": "increase(poupi_data_core_sync_items_total{outcome=\"updated\"}[2h])",
+          "legendFormat": "atualizados"
+        },
+        {
+          "expr": "increase(poupi_data_core_sync_items_total{outcome=\"skipped\"}[2h])",
+          "legendFormat": "ignorados"
+        },
+        {
+          "expr": "increase(poupi_data_core_sync_items_total{outcome=\"error\"}[2h])",
+          "legendFormat": "erros"
         }
       ]
     }

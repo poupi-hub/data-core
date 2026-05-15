@@ -142,10 +142,13 @@ class BaseAnalyticsProcessor(ABC):
                     analytics_record_id=row.id,
                 )
         elif self.module == "trading":
-            rows = self.db.query(TradingAnalytics).filter(
-                TradingAnalytics.symbol == normalized.symbol,
-                TradingAnalytics.timeframe == normalized.timeframe,
-            ).all()
+            rows = self.db.query(TradingAnalytics).filter(TradingAnalytics.market_candle_id == normalized.id).all()
+            if not rows:
+                rows = self.db.query(TradingAnalytics).filter(
+                    TradingAnalytics.symbol == normalized.symbol,
+                    TradingAnalytics.timeframe == normalized.timeframe,
+                    TradingAnalytics.market_candle_id.is_(None),
+                ).all()
             for row in rows:
                 row.source_normalizer_name = normalizer_name
                 row.source_normalizer_version = normalizer_version

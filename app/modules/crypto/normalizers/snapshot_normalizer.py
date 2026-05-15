@@ -44,10 +44,23 @@ class CryptoSnapshotNormalizer(BaseNormalizer):
                     low=normalized.get("low"),
                     close=normalized.get("close"),
                     volume=normalized.get("volume"),
-                    timestamp=normalized.get("timestamp") or raw.collected_at,
+                    timestamp=_parse_datetime(normalized.get("timestamp")) or raw.collected_at,
                 )
             )
         else:
             self.db.add(NormalizedCryptoSnapshot(raw_collection_id=raw.id, **normalized))
         self.db.flush()
         return 1
+
+
+def _parse_datetime(value: object) -> datetime | None:
+    if isinstance(value, datetime):
+        return value
+    if not isinstance(value, str) or not value:
+        return None
+    try:
+        normalized = value.replace("Z", "+00:00")
+        parsed = datetime.fromisoformat(normalized)
+        return parsed if parsed.tzinfo else parsed.replace(tzinfo=timezone.utc)
+    except ValueError:
+        return None

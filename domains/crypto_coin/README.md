@@ -25,6 +25,19 @@ domains/crypto_coin/
 - Collector integrado: `crypto.crypto_coin_ohlcv`.
 - Worker dedicado: `workers.crypto_coin_worker`.
 - API REST geral: use `/api/v1/collectors`, `/api/v1/collectors/crypto.crypto_coin_ohlcv/run`, `/api/v1/runs` e `/api/v1/records`.
+- Feed de candles normalizados: `GET /api/v1/crypto/candles-feed`.
+- Feed de sinais e indicadores: `GET /api/v1/crypto/signals-feed`.
+
+Fluxo recomendado para consumidores como Poupi Crypto:
+
+```text
+crypto.crypto_coin_ohlcv -> raw_collections:marketCandle
+  -> normalized_market_candles
+  -> trading_analytics
+  -> /api/v1/crypto/*-feed
+```
+
+Consumidores externos nao devem manter collector ou banco OHLCV proprio enquanto esse fluxo estiver disponivel. Eles devem paginar pelos feeds com `next_cursor` e usar `symbol`, `timeframe` e `source` como filtros operacionais.
 
 ## Regras para evoluir
 
@@ -33,4 +46,3 @@ domains/crypto_coin/
 - Nao coloque frontend, dashboard ou HTML neste dominio.
 - Nao salve `.env`, banco SQLite ou logs versionados.
 - Se uma funcionalidade virar produto SaaS, exponha por API/worker do Data Core, nao por script solto.
-

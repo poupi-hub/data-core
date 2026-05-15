@@ -58,13 +58,22 @@ class TradingAnalytics(Base):
     __tablename__ = "trading_analytics"
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    market_candle_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("normalized_market_candles.id"), nullable=True, index=True
+    )
     symbol: Mapped[str] = mapped_column(String(40), index=True)
     timeframe: Mapped[str] = mapped_column(String(20), index=True)
     rsi: Mapped[float | None] = mapped_column(Numeric(10, 4), nullable=True)
     moving_average_fast: Mapped[float | None] = mapped_column(Numeric(24, 8), nullable=True)
     moving_average_slow: Mapped[float | None] = mapped_column(Numeric(24, 8), nullable=True)
     atr: Mapped[float | None] = mapped_column(Numeric(24, 8), nullable=True)
+    adx: Mapped[float | None] = mapped_column(Numeric(10, 4), nullable=True)
+    volume_ratio: Mapped[float | None] = mapped_column(Numeric(10, 4), nullable=True)
+    breakout_score: Mapped[float | None] = mapped_column(Numeric(10, 4), nullable=True)
     trend_score: Mapped[float | None] = mapped_column(Numeric(10, 4), nullable=True)
+    signal: Mapped[str | None] = mapped_column(String(40), nullable=True, index=True)
+    confidence: Mapped[int | None] = mapped_column(nullable=True)
+    regime: Mapped[str | None] = mapped_column(String(80), nullable=True, index=True)
     calculated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), index=True)
     source_normalizer_name: Mapped[str | None] = mapped_column(String(160), nullable=True, index=True)
     source_normalizer_version: Mapped[str | None] = mapped_column(String(40), nullable=True, index=True)

@@ -2,9 +2,9 @@ name: CI
 
 on:
   push:
-    branches: [main, master]
+    branches: [main, master, develop]
   pull_request:
-    branches: [main, master]
+    branches: [main, master, develop]
 
 jobs:
   lint:
@@ -48,6 +48,8 @@ jobs:
       SCHEDULER_ENABLED: "false"
       CACHE_ENABLED: "false"
       API_KEY_ENABLED: "false"
+      # Poupi legacy collector tests mock subprocess; only the env var needs to exist
+      POUPI_LEGACY_BACKEND_DIR: /tmp/poupi-legacy-stub
 
     steps:
       - uses: actions/checkout@v4
@@ -63,8 +65,10 @@ jobs:
       - name: Install Playwright browsers
         run: playwright install chromium --with-deps
 
-      - name: Run Alembic migrations
-        run: alembic upgrade head
+      - name: Validate Alembic migration chain
+        run: |
+          alembic upgrade head
+          alembic check
 
       - name: Run tests
         run: pytest -q --tb=short

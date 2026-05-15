@@ -17,6 +17,7 @@ from app.data_quality import models as data_quality_models
 from app.data_quality.api import router as data_quality_router
 from app.documentation import models as documentation_models
 from app.documentation.api import router as documentation_router
+from app.modules.crypto.api import router as crypto_router
 from app.modules.real_estate.api import router as real_estate_router
 from app.modules.real_estate import models as real_estate_models
 from app.modules.registry import register_pipeline_modules
@@ -104,6 +105,7 @@ def create_app() -> FastAPI:
     app.include_router(pipeline_router, dependencies=auth_dep)
     app.include_router(documentation_router, dependencies=auth_dep)
     app.include_router(data_quality_router, dependencies=auth_dep)
+    app.include_router(crypto_router, dependencies=auth_dep)
     app.include_router(real_estate_router, dependencies=auth_dep)
     app.include_router(sports_odds_router, dependencies=auth_dep)
     Instrumentator().instrument(app).expose(app, endpoint="/metrics", include_in_schema=False)

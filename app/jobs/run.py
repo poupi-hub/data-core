@@ -20,6 +20,8 @@ def main() -> None:
         normalize_job(args.module)
     if not args.skip_analytics:
         analytics_job(args.module)
+        if args.module == "crypto":
+            analytics_job("trading")
 
 
 if __name__ == "__main__":

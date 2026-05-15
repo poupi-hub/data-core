@@ -104,7 +104,7 @@ def check_source_circuit(
     logger.warning(
         "Circuit opened for source",
         extra={
-            "module": module,
+            "pipeline_module": module,
             "source_name": source_name,
             "consecutive_failures": len(recent_runs),
             "deactivated_targets": len(targets),
@@ -172,6 +172,6 @@ def reopen_source_circuit(db, *, module: str, source_name: str) -> int:
     db.commit()
     logger.info(
         "Circuit reopened for source",
-        extra={"module": module, "source_name": source_name, "reactivated": len(targets)},
+        extra={"pipeline_module": module, "source_name": source_name, "reactivated": len(targets)},
     )
     return len(targets)
