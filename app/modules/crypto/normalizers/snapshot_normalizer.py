@@ -1,6 +1,8 @@
 from datetime import datetime, timezone
 from typing import Any
 
+from sqlalchemy.dialects.postgresql import insert as pg_insert
+
 from app.normalization.models import NormalizedCryptoSnapshot, NormalizedMarketCandle
 from app.normalization.services import BaseNormalizer
 from app.raw.models import RawCollection
@@ -33,20 +35,25 @@ class CryptoSnapshotNormalizer(BaseNormalizer):
         if not isinstance(normalized, dict):
             return 0
         if normalized.pop("kind", None) == "candle":
-            self.db.add(
-                NormalizedMarketCandle(
-                    raw_collection_id=raw.id,
-                    source=raw.source_name,
-                    symbol=normalized.get("symbol") or raw.source_id or "unknown",
-                    timeframe=normalized.get("timeframe") or raw.metadata_json.get("timeframe") or "unknown",
-                    open=normalized.get("open"),
-                    high=normalized.get("high"),
-                    low=normalized.get("low"),
-                    close=normalized.get("close"),
-                    volume=normalized.get("volume"),
-                    timestamp=_parse_datetime(normalized.get("timestamp")) or raw.collected_at,
-                )
+            stmt = pg_insert(NormalizedMarketCandle).values(
+                raw_collection_id=raw.id,
+                source=raw.source_name,
+                symbol=normalized.get("symbol") or raw.source_id or "unknown",
+                timeframe=normalized.get("timeframe") or raw.metadata_json.get("timeframe") or "unknown",
+                open=normalized.get("open"),
+                high=normalized.get("high"),
+                low=normalized.get("low"),
+                close=normalized.get("close"),
+                volume=normalized.get("volume"),
+                timestamp=_parse_datetime(normalized.get("timestamp")) or raw.collected_at,
+                analytics_status="pending",
+                normalization_metadata_json={},
+            ).on_conflict_do_nothing(
+                constraint="uq_norm_market_candle_identity"
             )
+            result = self.db.execute(stmt)
+            self.db.flush()
+            return result.rowcount
         else:
             self.db.add(NormalizedCryptoSnapshot(raw_collection_id=raw.id, **normalized))
         self.db.flush()
