@@ -7,17 +7,44 @@
 data-core is a 3-stage ETL pipeline. Every domain (crypto, ecommerce,
 real_estate, sports_betting) flows through the same stages:
 
+```mermaid
+flowchart LR
+    subgraph scheduler["scheduler container"]
+        C[Collector\nAPScheduler]
+    end
+
+    subgraph worker["worker container"]
+        N[Normalizer\nevery 15min]
+        A[Analytics Processor\nevery 60min]
+    end
+
+    subgraph db["PostgreSQL — data_core_db"]
+        RAW[(raw_collections\nprocessing_status)]
+        NORM[(normalized_*\nanalytics_status=pending)]
+        ANA[(*_analytics\ntrading_analytics)]
+        PR[(pipeline_runs\npipeline_failures)]
+    end
+
+    C -->|"checksum dedup\nsave raw"| RAW
+    RAW -->|"WHERE status=\nnormalization_pending"| N
+    N -->|"validated + typed"| NORM
+    N -->|"PipelineRecorder"| PR
+    NORM -->|"WHERE analytics_status=\npending"| A
+    A -->|"RSI, MA, ATR, signal..."| ANA
+    A -->|"PipelineRecorder"| PR
+```
+
+**ASCII fallback:**
 ```
 ┌────────────┐    ┌───────────────────┐    ┌──────────────────┐    ┌─────────────────┐
 │  COLLECTOR │───►│  raw_collections  │───►│  NORMALIZER      │───►│  ANALYTICS      │
 │  (Python)  │    │  (PostgreSQL)     │    │  (Python)        │    │  PROCESSOR      │
 └────────────┘    └───────────────────┘    └──────────────────┘    └─────────────────┘
        │                   │                        │                       │
-       │                   │                        │                       │
        ▼                   ▼                        ▼                       ▼
   ExchangeAPI        checksum dedup          normalized_*             *_analytics
   HTTP scraper       processing_status       (domain table)          (domain table)
-  Binance/CCXT       = normalization_        analytics_status        Prometheus
+  Binance/CCXT       = normalization_        analytics_status        pipeline_runs
                        pending              = pending/processed       pipeline_runs
 ```
 

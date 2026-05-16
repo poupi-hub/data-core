@@ -1,103 +1,84 @@
-# Documentation Synchronization Rules
+# Documentation Sync Rules — data-core
 
-> Mandatory for all AI agents working on this codebase. Updated: 2026-05-16.
-
----
-
-## Rule: Every relevant change triggers doc sync
-
-Whenever any of the following changes:
-
-- Architecture or runtime topology
-- Pipeline stages, jobs, schedules
-- API endpoints (added, removed, changed)
-- Scrapers or collectors
-- Database schema or migrations
-- Operational flows or deployment procedures
-- Observability (metrics, alerts, logs, health checks)
-- Deployment configuration
-
-The AI **must automatically update** — without waiting for explicit instruction:
-
-1. Relevant `/docs/*.md` file(s)
-2. `ai/CONTEXT.md` (if architecture/topology/known gaps changed)
-3. `README.md` (if setup, architecture overview, or endpoints changed)
-4. `AGENTS.md` (if coding rules or constraints changed)
+> Fonte canônica (plataforma inteira): `Projetos/docs/documentation_rules.md`
+> Este arquivo contém o resumo aplicado ao data-core + referência às regras globais.
 
 ---
 
-## Responsibility split
+## Regra global
 
-### `/docs/` — Human + AI readable
+Qualquer mudança em arquitetura, pipeline, endpoint, schema, job, collector, observabilidade,
+deployment ou variável de ambiente → atualizar **automaticamente, sem instrução explícita**:
 
-Full documentation for humans: onboarding, architecture, operation, troubleshooting.
+1. `/docs/*.md` relevante
+2. `ai/CONTEXT.md` (topology, key files, known gaps)
+3. `README.md` (se setup, endpoints ou roles mudaram)
+4. `AGENTS.md` (se regras de código mudaram)
+5. Gerar relatório em `ai/reports/` ou `docs/reports/`
 
-| File | Owner topic |
+---
+
+## Gatilhos de sincronização — data-core
+
+| Mudança | Arquivos a atualizar |
 |---|---|
-| `DATA_FLOW.md` | ETL stages per domain |
-| `JOBS_AND_SCHEDULES.md` | All scheduler jobs and triggers |
-| `API_ENDPOINTS.md` | REST endpoints with request/response examples |
-| `OBSERVABILITY.md` | Metrics, alerts, logs, health checks, SQL queries |
-| `AUDIT.md` | Current audit: gaps, priorities, scale risks |
-
-### `/ai/` — AI-optimized operational context
-
-Dense context for autonomous AI agents.
-
-| File | Content |
-|---|---|
-| `CONTEXT.md` | Full current state: topology, tables, files, gaps |
-| `RUNBOOK.md` | Step-by-step: diagnose, deploy, fix, activate |
-| `DOC_SYNC_RULES.md` | This file |
-
-### `README.md` — Human onboarding
-
-Project overview, architecture diagram, quick-start, environment variables, container roles.
-
-### `AGENTS.md` — Coding rules
-
-Architecture constraints, where to put code, migration rules, patterns.
+| Novo endpoint | `docs/API_ENDPOINTS.md`, `ai/CONTEXT.md` §API endpoints, `README.md` |
+| Nova migration | `README.md` §Adding a migration (novo head), `ai/CONTEXT.md` §Database, `AGENTS.md` |
+| Novo collector | `docs/DATA_FLOW.md`, `docs/JOBS_AND_SCHEDULES.md`, `ai/CONTEXT.md` |
+| Novo job/schedule | `docs/JOBS_AND_SCHEDULES.md`, `ai/CONTEXT.md` §Jobs |
+| Novo metric Prometheus | `docs/OBSERVABILITY.md`, `ai/CONTEXT.md` §Observability |
+| Domínio ativado | `docs/DATA_FLOW.md`, `ai/CONTEXT.md` §Known gaps, `docs/AUDIT.md`, `docs/projects-summary.md` |
+| Novo container/env var | `README.md`, `ai/CONTEXT.md` §Runtime topology, `AGENTS.md` |
+| Schema DB mudou | `docs/DATA_FLOW.md`, `ai/CONTEXT.md` §Database |
+| Alert rule adicionada | `docs/OBSERVABILITY.md` |
+| Gap fechado | `docs/AUDIT.md` §Priority matrix, `ai/CONTEXT.md` §Known gaps |
+| Deploy procedure mudou | `ai/RUNBOOK.md` §Deploy, `ai/CONTEXT.md` §Deployment |
 
 ---
 
-## Anti-duplication rule
+## Regra de diagramas
 
-- `/ai/CONTEXT.md` references `/docs/*.md` — does NOT duplicate full content
-- `/docs/*.md` files are the single source of truth for their topic
-- `README.md` gives overview only — links to `/docs/` for details
-- `AGENTS.md` focuses on coding constraints — not operational procedures
+Toda mudança em fluxo ETL ou arquitetura deve atualizar o diagrama Mermaid em `docs/DATA_FLOW.md`.
+
+Toda mudança em topologia de containers deve atualizar o diagrama ASCII/Mermaid em `README.md`.
 
 ---
 
-## End-of-phase checklist
+## Regra de relatórios
 
-Before closing any implementation phase:
+Toda fase operacional gera um relatório em `ai/reports/PHASE_<X>_REPORT.md` contendo:
+
+* o que foi implementado;
+* o que foi sincronizado na documentação;
+* gaps restantes;
+* próximos passos.
+
+---
+
+## Anti-duplicação
+
+| Conteúdo | Fonte única | Outros arquivos |
+|---|---|---|
+| Endpoints completos | `docs/API_ENDPOINTS.md` | `ai/CONTEXT.md` → referencia |
+| ETL flow detalhado | `docs/DATA_FLOW.md` | `ai/CONTEXT.md` → resume |
+| Jobs e schedules | `docs/JOBS_AND_SCHEDULES.md` | `ai/CONTEXT.md` → resume |
+| Metrics referência | `docs/OBSERVABILITY.md` | `ai/CONTEXT.md` → lista apenas nomes |
+| Topology runtime | `ai/CONTEXT.md` | `README.md` → diagrama visual |
+| Gaps e prioridades | `docs/AUDIT.md` | `ai/CONTEXT.md` → tabela resumida |
+| Regras globais de doc | `Projetos/docs/documentation_rules.md` | Este arquivo → resume |
+
+---
+
+## Checklist de end-of-phase
 
 ```
-[ ] All changed files have corresponding doc updates
-[ ] /docs/* describes current reality (not past state)
-[ ] ai/CONTEXT.md §Known gaps reflects new state
-[ ] README.md quick-start and endpoint list are current
-[ ] AGENTS.md rules match current architecture
-[ ] No file references old container names, old endpoints, old schemas
-[ ] Examples in docs can actually be run against production
+[ ] /docs/*.md descreve a realidade atual (não o passado)
+[ ] ai/CONTEXT.md §Known gaps está atualizado
+[ ] ai/CONTEXT.md §Runtime topology reflete containers atuais
+[ ] README.md quick-start funciona
+[ ] AGENTS.md regras batem com a implementação
+[ ] Nenhum arquivo referencia container names antigos ou endpoints deletados
+[ ] Exemplos nos docs podem ser executados em produção
+[ ] Relatório de fase gerado em ai/reports/
+[ ] Diagramas Mermaid atualizados
 ```
-
----
-
-## What "relevant change" means
-
-**Relevant** (must sync):
-- New endpoint added or removed
-- New migration created
-- New container role or env var
-- Job schedule changed
-- New Prometheus metric added
-- Circuit breaker behavior changed
-- New domain activated
-
-**Not relevant** (no sync needed):
-- Bug fix with no behavioral change
-- Internal refactor with same interface
-- Log message text changes
-- Comment updates

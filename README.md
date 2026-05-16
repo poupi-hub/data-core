@@ -10,31 +10,40 @@ Production ETL platform — collects, normalizes and computes analytics for 4 do
 
 ## Architecture
 
-```
-┌──────────────────────────────────────────────────────────┐
-│  scheduler container          worker container           │
-│  (SCHEDULER_COLLECTORS=true)  (SCHEDULER_PIPELINE=true)  │
-│                                                          │
-│  APScheduler                  APScheduler                │
-│  ├─ crypto: every 15min       ├─ normalize_job: 15min    │
-│  ├─ ecommerce: every 60min    └─ analytics_job: 60min    │
-│  ├─ real_estate: every 120min                            │
-│  └─ sports_betting: every 15min                          │
-└──────────┬───────────────────────────┬───────────────────┘
-           │                           │
-           ▼                           ▼
-    raw_collections            normalized_* → *_analytics
-    (PostgreSQL)               pipeline_runs / pipeline_failures
-           │
-           ▼
-    api container (SCHEDULER_ENABLED=false)
-    FastAPI on :8000
-    /health /live /ready /metrics
-    /api/v1/crypto/* /api/v1/operations/*
+```mermaid
+flowchart TB
+    subgraph scheduler["scheduler container (SCHEDULER_COLLECTORS=true)"]
+        SC[APScheduler\ncrypto 15min · ecommerce 60min\nreal_estate 120min · sports 15min]
+    end
+    subgraph worker["worker container (SCHEDULER_PIPELINE=true)"]
+        WN[normalize_job every 15min]
+        WA[analytics_job every 60min]
+    end
+    subgraph api_c["api container (SCHEDULER_ENABLED=false)"]
+        API[FastAPI :8000\n/live /ready /health /metrics\n/api/v1/crypto /api/v1/operations]
+    end
+    subgraph storage["PostgreSQL + Redis"]
+        DB[(data_core_db)]
+        RD[(Redis)]
+    end
+    subgraph obs["Observability"]
+        PM[Prometheus]
+        GF[Grafana\ndata-core-ops-v1]
+    end
+
+    SC -->|raw JSON + checksum dedup| DB
+    WN -->|normalizes pending| DB
+    WA -->|computes analytics| DB
+    WA -->|pipeline_runs| DB
+    API --- DB
+    API --- RD
+    PM -->|scrape :8000/metrics| API
+    GF --> PM
+    GF -->|pipeline_runs query| DB
 ```
 
 **3-stage ETL:** Collection → Normalization → Analytics  
-**Observability:** `pipeline_runs` DB table + Prometheus metrics + Grafana `data-core-ops-v1`
+**Observability:** `pipeline_runs` DB table + Prometheus + Grafana `data-core-ops-v1`
 
 ---
 
