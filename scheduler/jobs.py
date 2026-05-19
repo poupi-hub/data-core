@@ -1,7 +1,10 @@
 import asyncio
 import logging
+import time
+import uuid
 from collections import defaultdict
 from datetime import datetime, timedelta, timezone
+from typing import Any
 
 from sqlalchemy import func, outerjoin
 
@@ -9,11 +12,59 @@ from app.analytics.registry import analytics_registry
 from app.modules.registry import register_pipeline_modules
 from app.normalization.registry import normalizer_registry
 from app.raw.models import RawCollection
+from core.config import settings
 from database.models import CollectionRun, CollectionTarget, CollectorError, RunStatus
 from database.session import SessionLocal
 from workers.collector_worker import run_collector_by_name
 
 logger = logging.getLogger(__name__)
+
+
+def _log_job_run(
+    *,
+    job_name: str,
+    run_id: str,
+    domain: str,
+    source: str,
+    started_at: float,
+    collected_count: int = 0,
+    persisted_count: int = 0,
+    normalized_count: int = 0,
+    failed_count: int = 0,
+    retry_count: int = 0,
+    error: Exception | None = None,
+) -> None:
+    """Emit a standardized operational log entry at the end of a scheduled job.
+
+    Fields follow the data-core observability standard (Phase D Fase 5):
+      run_id, job, domain, source, status, duration_ms,
+      collected_count, persisted_count, normalized_count,
+      failed_count, retry_count, last_success_at / last_failure_at.
+    """
+    duration_ms = int((time.monotonic() - started_at) * 1000)
+    now_iso = datetime.now(timezone.utc).isoformat()
+    status = "error" if error else ("partial" if failed_count > 0 else "success")
+
+    extra: dict[str, Any] = {
+        "run_id": run_id,
+        "job": job_name,
+        "domain": domain,
+        "source": source,
+        "status": status,
+        "duration_ms": duration_ms,
+        "collected_count": collected_count,
+        "persisted_count": persisted_count,
+        "normalized_count": normalized_count,
+        "failed_count": failed_count,
+        "retry_count": retry_count,
+    }
+    if error:
+        extra["last_failure_at"] = now_iso
+        extra["error"] = str(error)
+        logger.error("Job run finished", extra=extra)
+    else:
+        extra["last_success_at"] = now_iso
+        logger.info("Job run finished", extra=extra)
 
 
 def run_collector_job(collector_name: str) -> None:
@@ -29,8 +80,37 @@ def run_collector_job(collector_name: str) -> None:
 
 
 def collect_raw_job(collector_name: str) -> None:
-    logger.info("Starting RAW collection job", extra={"collector": collector_name})
-    run_collector_job(collector_name)
+    """Scheduled entry-point for generic collector jobs.
+
+    Emits a standardized operational log entry after execution with fields:
+    run_id, domain, source, status, duration_ms, collected_count, persisted_count,
+    failed_count — required by Phase D Fase 5 observability standard.
+    """
+    run_id = str(uuid.uuid4())
+    started_at = time.monotonic()
+    # Derive domain from collector name prefix (e.g. "crypto.generic_price" → "crypto")
+    domain = collector_name.split(".")[0] if "." in collector_name else "unknown"
+    logger.info(
+        "Job run started",
+        extra={"run_id": run_id, "job": "collect_raw_job", "domain": domain, "source": collector_name},
+    )
+    error: Exception | None = None
+    try:
+        run_collector_job(collector_name)
+    except Exception as exc:
+        error = exc
+        raise
+    finally:
+        _log_job_run(
+            job_name="collect_raw_job",
+            run_id=run_id,
+            domain=domain,
+            source=collector_name,
+            started_at=started_at,
+            # collected_count/persisted_count not tracked at this wrapper level;
+            # the underlying collector logs them separately via save_raw().
+            error=error,
+        )
 
 
 def normalize_job(module: str | None = None, limit: int = 100) -> None:
@@ -77,13 +157,145 @@ SOURCE_COLLECTORS = {
 }
 
 DEFAULT_COLLECTION_TARGETS = [
+    # --- Drogasil (6 targets) ---
     {
         "module": "ecommerce",
         "source_name": "drogasil",
-        "collector_name": "poupi_legacy_raw_collector",
+        "collector_name": "ecommerce.url_scraper",
         "target_url": "https://www.drogasil.com.br/fralda-pampers-confort-sec-xxxg-44-unidades-pampers-1351898.html",
-        "metadata_json": {"seeded": True, "category": "baby", "kind": "validation_target"},
-    }
+        "active": True,
+        "metadata_json": {"kind": "production_target", "owner": "data-platform", "category": "baby", "product_seed": "pampers_confort_sec_xxxg_44"},
+    },
+    {
+        "module": "ecommerce",
+        "source_name": "drogasil",
+        "collector_name": "ecommerce.url_scraper",
+        "target_url": "https://www.drogasil.com.br/pampers-fralda-descartavel-confort-sec-pacote-max-xg-com-92-unidades-1250294.html",
+        "active": True,
+        "metadata_json": {"kind": "production_target", "owner": "data-platform", "category": "baby", "product_seed": "pampers_confort_sec_xg_92"},
+    },
+    {
+        "module": "ecommerce",
+        "source_name": "drogasil",
+        "collector_name": "ecommerce.url_scraper",
+        "target_url": "https://www.drogasil.com.br/fralda-pampers-confort-sec-xg-92-unidades-1474816.html",
+        "active": True,
+        "metadata_json": {"kind": "production_target", "owner": "data-platform", "category": "baby", "product_seed": "pampers_confort_sec_xg_92_marketplace"},
+    },
+    {
+        "module": "ecommerce",
+        "source_name": "drogasil",
+        "collector_name": "ecommerce.url_scraper",
+        "target_url": "https://www.drogasil.com.br/fralda-pampers-supersec-g-26-unidades-891311.html",
+        "active": True,
+        "metadata_json": {"kind": "production_target", "owner": "data-platform", "category": "baby", "product_seed": "pampers_supersec_g_26"},
+    },
+    {
+        "module": "ecommerce",
+        "source_name": "drogasil",
+        "collector_name": "ecommerce.url_scraper",
+        "target_url": "https://www.drogasil.com.br/fralda-pampers-premium-care-pants-xg-com-26un-1143334.html",
+        "active": True,
+        "metadata_json": {"kind": "production_target", "owner": "data-platform", "category": "baby", "product_seed": "pampers_premium_care_pants_xg_26"},
+    },
+    {
+        "module": "ecommerce",
+        "source_name": "drogasil",
+        "collector_name": "ecommerce.url_scraper",
+        "target_url": "https://www.drogasil.com.br/kit-2-fraldas-pampers-supersec-g-26-unidades-666396.html",
+        "active": True,
+        "metadata_json": {"kind": "production_target", "owner": "data-platform", "category": "baby", "product_seed": "pampers_supersec_g_26_kit_2"},
+    },
+    # --- Drogaraia (6 targets) ---
+    {
+        "module": "ecommerce",
+        "source_name": "drogaraia",
+        "collector_name": "ecommerce.url_scraper",
+        "target_url": "https://www.drogaraia.com.br/fralda-pampers-confort-sec-xxxg-44-unidades-pampers-1351898.html",
+        "active": True,
+        "metadata_json": {"kind": "production_target", "owner": "data-platform", "category": "baby", "product_seed": "pampers_confort_sec_xxxg_44"},
+    },
+    {
+        "module": "ecommerce",
+        "source_name": "drogaraia",
+        "collector_name": "ecommerce.url_scraper",
+        "target_url": "https://www.drogaraia.com.br/pampers-premium-care-tamanho-grande-com-30-tiras.html",
+        "active": True,
+        "metadata_json": {"kind": "production_target", "owner": "data-platform", "category": "baby", "product_seed": "pampers_premium_care_g_30"},
+    },
+    {
+        "module": "ecommerce",
+        "source_name": "drogaraia",
+        "collector_name": "ecommerce.url_scraper",
+        "target_url": "https://www.drogaraia.com.br/fralda-pampers-supersec-g-26-unidades-891311.html",
+        "active": True,
+        "metadata_json": {"kind": "production_target", "owner": "data-platform", "category": "baby", "product_seed": "pampers_supersec_g_26"},
+    },
+    {
+        "module": "ecommerce",
+        "source_name": "drogaraia",
+        "collector_name": "ecommerce.url_scraper",
+        "target_url": "https://www.drogaraia.com.br/kit-2-fraldas-pampers-supersec-g-26-unidades-666396.html",
+        "active": True,
+        "metadata_json": {"kind": "production_target", "owner": "data-platform", "category": "baby", "product_seed": "pampers_supersec_g_26_kit_2"},
+    },
+    {
+        "module": "ecommerce",
+        "source_name": "drogaraia",
+        "collector_name": "ecommerce.url_scraper",
+        "target_url": "https://www.drogaraia.com.br/fralda-pampers-premium-care-pants-xg-com-26un-1143334.html",
+        "active": True,
+        "metadata_json": {"kind": "production_target", "owner": "data-platform", "category": "baby", "product_seed": "pampers_premium_care_pants_xg_26"},
+    },
+    {
+        "module": "ecommerce",
+        "source_name": "drogaraia",
+        "collector_name": "ecommerce.url_scraper",
+        "target_url": "https://www.drogaraia.com.br/pampers-fralda-descartavel-confort-sec-pacote-max-xg-com-92-unidades-1250294.html",
+        "active": True,
+        "metadata_json": {"kind": "production_target", "owner": "data-platform", "category": "baby", "product_seed": "pampers_confort_sec_xg_92"},
+    },
+    # --- Pague Menos (5 targets) ---
+    {
+        "module": "ecommerce",
+        "source_name": "paguemenos",
+        "collector_name": "ecommerce.url_scraper",
+        "target_url": "https://www.paguemenos.com.br/fralda-descartavel-infantil-pampers-confort-sec-xxxg-mais-de-19kg-pacote-44-unidades-leve-mais-pague-menos/p",
+        "active": True,
+        "metadata_json": {"kind": "production_target", "owner": "data-platform", "category": "baby", "product_seed": "pampers_confort_sec_xxxg_44"},
+    },
+    {
+        "module": "ecommerce",
+        "source_name": "paguemenos",
+        "collector_name": "ecommerce.url_scraper",
+        "target_url": "https://www.paguemenos.com.br/fralda-pampers-pants-premium-care-m-78-unidades/p",
+        "active": True,
+        "metadata_json": {"kind": "production_target", "owner": "data-platform", "category": "baby", "product_seed": "pampers_premium_care_pants_m_78"},
+    },
+    {
+        "module": "ecommerce",
+        "source_name": "paguemenos",
+        "collector_name": "ecommerce.url_scraper",
+        "target_url": "https://www.paguemenos.com.br/fralda-pampers-confort-sec-p-72-unidades/p",
+        "active": True,
+        "metadata_json": {"kind": "production_target", "owner": "data-platform", "category": "baby", "product_seed": "pampers_confort_sec_p_72"},
+    },
+    {
+        "module": "ecommerce",
+        "source_name": "paguemenos",
+        "collector_name": "ecommerce.url_scraper",
+        "target_url": "https://www.paguemenos.com.br/fraldas-pampers-supersec-p-34-unidades/p",
+        "active": True,
+        "metadata_json": {"kind": "production_target", "owner": "data-platform", "category": "baby", "product_seed": "pampers_supersec_p_34"},
+    },
+    {
+        "module": "ecommerce",
+        "source_name": "paguemenos",
+        "collector_name": "ecommerce.url_scraper",
+        "target_url": "https://www.paguemenos.com.br/fraldas-pampers-premium-care-p-40-unidades/p",
+        "active": True,
+        "metadata_json": {"kind": "production_target", "owner": "data-platform", "category": "baby", "product_seed": "pampers_premium_care_p_40"},
+    },
 ]
 
 
@@ -92,10 +304,10 @@ def run_module_collectors_job(module: str, source: str | None = None) -> None:
         result = run_collection_targets_job(
             module="ecommerce",
             source=source,
-            collector_name="poupi_legacy_raw_collector",
+            collector_name="ecommerce.url_scraper",
         )
         if result["targets"] > 0:
-            logger.info("Ecommerce target collection finished", extra=result)
+            logger.info("Ecommerce URL scraper collection finished", extra=result)
             return
 
     collectors = MODULE_COLLECTORS.get(module, [])
@@ -235,7 +447,16 @@ def run_collection_targets_job(
                     available_targets.append(target)
             if not available_targets:
                 continue
-            if selected_collector_name == "poupi_legacy_raw_collector":
+            if selected_collector_name == "ecommerce.url_scraper":
+                result = _run_python_url_targets(
+                    db,
+                    available_targets,
+                    delay_seconds=delay_seconds,
+                    timeout_seconds=timeout_seconds,
+                )
+                raw_saved += int(result.get("raw_saved_count", 0))
+                errors += int(result.get("error_count", 0))
+            elif selected_collector_name == "poupi_legacy_raw_collector":
                 result = _run_poupi_legacy_targets(
                     db,
                     available_targets,
@@ -297,6 +518,19 @@ def run_collection_target_by_id(
                 "error_count": 0,
                 "skipped_locked": 1,
             }
+        if target.collector_name == "ecommerce.url_scraper":
+            result = _run_python_url_targets(
+                db,
+                [target],
+                delay_seconds=delay_seconds,
+                timeout_seconds=timeout_seconds,
+            )
+            return {
+                "targets": 1,
+                "raw_saved_count": int(result.get("raw_saved_count", 0)),
+                "error_count": int(result.get("error_count", 0)),
+                "skipped_locked": 0,
+            }
         if target.collector_name == "poupi_legacy_raw_collector":
             result = _run_poupi_legacy_targets(
                 db,
@@ -322,6 +556,47 @@ def run_collection_target_by_id(
         db.close()
 
 
+def run_ecommerce_url_targets_job(source: str | None = None, limit: int = 100) -> dict[str, object]:
+    """Scheduled job: collect all active ecommerce.url_scraper targets (every 2h).
+
+    Emits standardized operational log on completion (Phase D Fase 5):
+    run_id, domain, source, status, duration_ms, collected_count (targets),
+    persisted_count (raw_saved_count), failed_count (error_count).
+    """
+    run_id = str(uuid.uuid4())
+    started_at = time.monotonic()
+    job_source = source or "ecommerce.url_scraper"
+    logger.info(
+        "Job run started",
+        extra={"run_id": run_id, "job": "run_ecommerce_url_targets_job", "domain": "ecommerce", "source": job_source},
+    )
+    error: Exception | None = None
+    result: dict[str, object] = {}
+    try:
+        result = run_collection_targets_job(
+            module="ecommerce",
+            source=source,
+            collector_name="ecommerce.url_scraper",
+            limit=limit,
+        )
+        return result
+    except Exception as exc:
+        error = exc
+        raise
+    finally:
+        _log_job_run(
+            job_name="run_ecommerce_url_targets_job",
+            run_id=run_id,
+            domain="ecommerce",
+            source=job_source,
+            started_at=started_at,
+            collected_count=int(result.get("targets", 0)),
+            persisted_count=int(result.get("raw_saved_count", 0)),
+            failed_count=int(result.get("error_count", 0)),
+            error=error,
+        )
+
+
 def run_poupi_legacy_targets_job(source: str | None = None, limit: int = 100) -> dict[str, object]:
     result = run_collection_targets_job(
         module="ecommerce",
@@ -330,6 +605,31 @@ def run_poupi_legacy_targets_job(source: str | None = None, limit: int = 100) ->
         limit=limit,
     )
     logger.info("Poupi legacy target collection finished", extra=result)
+    return result
+
+
+def _run_python_url_targets(
+    db,
+    targets: list[CollectionTarget],
+    *,
+    delay_seconds: float = 0.5,
+    timeout_seconds: int | None = None,
+) -> dict[str, int]:
+    """Run EcommerceURLScraper against a list of collection targets."""
+    from collectors.ecommerce.url_scraper import EcommerceURLScraper
+
+    scraper = EcommerceURLScraper(
+        db,
+        timeout_seconds=timeout_seconds or 30,
+        retry_attempts=2,
+        retry_backoff_seconds=3.0,
+        delay_seconds=delay_seconds,
+    )
+    result = scraper.collect_targets(targets)
+    # EcommerceURLScraper saves via begin_nested() + flush() within the outer
+    # transaction. Without an explicit commit the session close rolls back all
+    # inserts silently (autocommit=False). Commit here after all targets are done.
+    db.commit()
     return result
 
 
@@ -659,3 +959,122 @@ def analytics_job(module: str | None = None, limit: int = 100) -> None:
                 logger.info("Analytics processing finished", extra={"pipeline_module": module_name})
             finally:
                 db.close()
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Phase WATCHDOG — Operational watchdog jobs
+# ──────────────────────────────────────────────────────────────────────────────
+
+
+def operational_watchdog_job() -> None:
+    """Run all watchdog checks every 30-60 min and send immediate Telegram alerts.
+
+    Checks:
+      1. Collection freshness per domain
+      2. Normalization backlog and success rate
+      3. Scraper quality scores, anti-bot detections, structural drift
+      4. Telegram publication age (via poupi-baby callback events)
+
+    Sends Telegram immediately for critical alerts.  Persists WatchdogRun to DB.
+    Updates Prometheus metrics for Grafana dashboards.
+    """
+    if not settings.watchdog_enabled:
+        logger.debug("operational_watchdog_job: watchdog disabled via settings")
+        return
+
+    from app.watchdog.service import WatchdogService
+
+    run_id = str(uuid.uuid4())
+    started_at = time.monotonic()
+    logger.info(
+        "Job run started",
+        extra={"run_id": run_id, "job": "operational_watchdog_job", "domain": "platform", "source": "watchdog"},
+    )
+    error: Exception | None = None
+    try:
+        db = SessionLocal()
+        try:
+            svc = WatchdogService(db)
+            run = svc.run()
+            logger.info(
+                "Job run finished",
+                extra={
+                    "run_id": run_id,
+                    "job": "operational_watchdog_job",
+                    "domain": "platform",
+                    "source": "watchdog",
+                    "status": run.overall_status,
+                    "alert_count": len(run.alert_codes or []),
+                    "duration_ms": run.duration_ms,
+                    "last_success_at": datetime.now(timezone.utc).isoformat(),
+                },
+            )
+        finally:
+            db.close()
+    except Exception as exc:
+        error = exc
+        logger.error(
+            "Job run finished",
+            extra={
+                "run_id": run_id,
+                "job": "operational_watchdog_job",
+                "domain": "platform",
+                "source": "watchdog",
+                "status": "error",
+                "error": str(exc),
+                "last_failure_at": datetime.now(timezone.utc).isoformat(),
+            },
+        )
+        raise
+
+
+def watchdog_heartbeat_job() -> None:
+    """Send periodic Telegram health summary (every WATCHDOG_HEARTBEAT_HOURS hours).
+
+    Runs all checks and sends a formatted summary regardless of status:
+      ✅ Poupi saudável / ⚠️ Poupi — ATENÇÃO / 🔴 Poupi — CRÍTICO
+    """
+    if not settings.watchdog_enabled:
+        logger.debug("watchdog_heartbeat_job: watchdog disabled via settings")
+        return
+
+    from app.watchdog.service import WatchdogService
+
+    run_id = str(uuid.uuid4())
+    logger.info(
+        "Job run started",
+        extra={"run_id": run_id, "job": "watchdog_heartbeat_job", "domain": "platform", "source": "watchdog"},
+    )
+    try:
+        db = SessionLocal()
+        try:
+            svc = WatchdogService(db)
+            sent = svc.heartbeat()
+            logger.info(
+                "Job run finished",
+                extra={
+                    "run_id": run_id,
+                    "job": "watchdog_heartbeat_job",
+                    "domain": "platform",
+                    "source": "watchdog",
+                    "status": "success",
+                    "telegram_sent": sent,
+                    "last_success_at": datetime.now(timezone.utc).isoformat(),
+                },
+            )
+        finally:
+            db.close()
+    except Exception as exc:
+        logger.error(
+            "Job run finished",
+            extra={
+                "run_id": run_id,
+                "job": "watchdog_heartbeat_job",
+                "domain": "platform",
+                "source": "watchdog",
+                "status": "error",
+                "error": str(exc),
+                "last_failure_at": datetime.now(timezone.utc).isoformat(),
+            },
+        )
+        raise

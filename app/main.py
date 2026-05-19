@@ -1,5 +1,7 @@
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
+import threading
+import time
 
 from fastapi import Depends, FastAPI
 from fastapi.responses import JSONResponse
@@ -11,6 +13,8 @@ from sqlalchemy import text
 from api.auth import verify_api_key
 from api.rate_limit import limiter
 from api.routes import router as api_router
+import api.live_metrics  # noqa: F401 — registers Phase Q Prometheus Gauges in this process
+from api.live_metrics_updater import refresh_live_metrics
 from api.poupi_baby_routes import router as poupi_baby_router
 from api.schemas import DependencyStatus, HealthResponse
 from app.analytics import models as analytics_models
@@ -25,6 +29,10 @@ from app.modules.real_estate import models as real_estate_models
 from app.modules.registry import register_pipeline_modules
 from app.modules.sports_odds.api import router as sports_odds_router
 from app.modules.sports_odds import models as sports_odds_models
+from app.scrapers.api import router as scrapers_router
+import app.scrapers.models  # noqa: F401 — ensure ScraperDriftEvent table is registered
+from app.watchdog.api import router as watchdog_router
+import app.watchdog.models  # noqa: F401 — ensure WatchdogRun + TelegramPublicationEvent registered
 from app.normalization import models as normalization_models
 from app.pipeline import models as pipeline_models  # ensure tables are registered
 from app.raw import models as raw_models
@@ -43,6 +51,17 @@ _ = analytics_models
 _ = data_quality_models
 _ = documentation_models
 _ = pipeline_models
+_ = app.scrapers.models
+_ = app.watchdog.models
+
+
+def _metrics_refresh_loop(stop_event: threading.Event, interval: int = 60) -> None:
+    """Daemon thread: lê JSONLs Phase O/P/Q e atualiza Gauges Prometheus a cada N segundos."""
+    while not stop_event.wait(interval):
+        try:
+            refresh_live_metrics()
+        except Exception:
+            pass  # nunca deixar o daemon morrer
 
 
 @asynccontextmanager
@@ -55,6 +74,15 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         scheduler = create_scheduler()
         app.state.scheduler = scheduler
         start_scheduler(scheduler)
+
+    # Daemon thread: atualiza Gauges Phase O/P/Q a partir dos JSONLs locais.
+    # Necessário porque scripts CLI rodam em processos separados — sem isto,
+    # os Gauges ficam em 0 mesmo após execucoes dos modulos de pesquisa.
+    _stop = threading.Event()
+    _t = threading.Thread(target=_metrics_refresh_loop, args=(_stop,), daemon=True, name="metrics-refresh")
+    _t.start()
+    refresh_live_metrics()  # refresh imediato na startup
+
     try:
         yield
     finally:
@@ -181,5 +209,7 @@ def create_app() -> FastAPI:
     app.include_router(crypto_router, dependencies=auth_dep)
     app.include_router(real_estate_router, dependencies=auth_dep)
     app.include_router(sports_odds_router, dependencies=auth_dep)
+    app.include_router(scrapers_router, dependencies=auth_dep)
+    app.include_router(watchdog_router, dependencies=auth_dep)
     Instrumentator().instrument(app).expose(app, endpoint="/metrics", include_in_schema=False)
     return app

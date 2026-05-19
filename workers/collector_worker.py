@@ -5,6 +5,7 @@ from datetime import datetime, timezone
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
+from api.metrics import collection_raw_duplicates_total, collection_raw_saved_total
 from collectors.registry import registry
 from core.config import settings
 from database.models import (
@@ -52,8 +53,24 @@ async def run_collector_by_name(collector_name: str, db: Session) -> CollectionR
 
         saved = 0
         raw_saved = 0
+        raw_duplicates = 0
+        domain_label = metadata.domain.value
         for item in items:
-            raw_saved += collector.save_raw(db, [item])
+            item_saved = collector.save_raw(db, [item])
+            raw_saved += item_saved
+            if item_saved:
+                # Increment Prometheus counter — wired here for Phase E (E-01 fix).
+                # Metric defined in api/metrics.py; previously never incremented.
+                collection_raw_saved_total.labels(
+                    domain=domain_label,
+                    collector_name=metadata.name,
+                ).inc(item_saved)
+            else:
+                raw_duplicates += 1
+                collection_raw_duplicates_total.labels(
+                    domain=domain_label,
+                    collector_name=metadata.name,
+                ).inc()
             payload_hash = stable_payload_hash(item.payload)
             record = CollectedRecord(
                 run_id=run.id,
@@ -77,7 +94,7 @@ async def run_collector_by_name(collector_name: str, db: Session) -> CollectionR
         run.raw_saved_count = raw_saved
         run.metadata_json = {
             **(run.metadata_json or {}),
-            "duplicate_raw_count": max(len(items) - raw_saved, 0),
+            "duplicate_raw_count": raw_duplicates,
             "collector_version": metadata.collector_version,
             "raw_schema_name": metadata.raw_schema_name,
             "raw_schema_version": metadata.raw_schema_version,

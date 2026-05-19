@@ -16,10 +16,7 @@ scrape_configs:
       - targets: ["api:8000"]
     metrics_path: /metrics
 
-  - job_name: poupi-jobs-api
-    static_configs:
-      - targets: ["poupi-jobs-api:8001"]
-    metrics_path: /metrics
+  # poupi-jobs-api REMOVIDO — projeto não existe (Phase D Fase 6).
 
   - job_name: poupi-crypto-api
     static_configs:
@@ -31,4 +28,11 @@ scrape_configs:
   - job_name: poupi-baby-backend
     static_configs:
       - targets: ["poupi-baby-backend:3001"]
+    metrics_path: /metrics
+
+  # poupi-baby worker (BullMQ processor + notification queues).
+  # Expõe /metrics e /healthz na porta 3002 via servidor HTTP nativo (Phase C Fase 5).
+  - job_name: poupi-baby-worker
+    static_configs:
+      - targets: ["poupi-baby-worker:3002"]
     metrics_path: /metrics
