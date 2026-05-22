@@ -40,6 +40,25 @@ _CLOUDFLARE_PATTERNS: list[re.Pattern[str]] = [
     re.compile(r"<title>attention required", re.I),
 ]
 
+# Patterns that are definitive Cloudflare/CAPTCHA *challenges* (not CDN references).
+# Used for 200 responses only — much stricter to avoid false positives on pages that
+# legitimately include Cloudflare CDN links or login-form reCAPTCHA.
+_CLOUDFLARE_CHALLENGE_PATTERNS: list[re.Pattern[str]] = [
+    re.compile(r"cf-challenge", re.I),
+    re.compile(r"just a moment\.\.\.", re.I),
+    re.compile(r"checking your browser", re.I),
+    re.compile(r"ddos protection by cloudflare", re.I),
+    re.compile(r"<title>attention required.*?cloudflare", re.I | re.DOTALL),
+]
+
+_CAPTCHA_CHALLENGE_PATTERNS: list[re.Pattern[str]] = [
+    re.compile(r"hcaptcha", re.I),
+    re.compile(r"challenge-form", re.I),
+    re.compile(r"prove you are (?:not a robot|human)", re.I),
+    re.compile(r"i'm not a robot", re.I),
+    re.compile(r"verificação de segurança", re.I),
+]
+
 _RATE_LIMIT_PATTERNS: list[re.Pattern[str]] = [
     re.compile(r"rate.?limit", re.I),
     re.compile(r"too many requests", re.I),
@@ -142,13 +161,17 @@ class AntiBotDetector:
 
         # ── 200 with suspicious body ──────────────────────────────────────────
         if status_code == 200:
-            # Cloudflare JS challenge served as 200 on some CDN configs
-            for pat in _CLOUDFLARE_PATTERNS:
+            # Cloudflare JS challenge served as 200 on some CDN configs.
+            # Use STRICT patterns only — generic "cloudflare" would false-positive on
+            # any page loading cdnjs.cloudflare.com CDN assets (e.g. paguemenos.com.br).
+            for pat in _CLOUDFLARE_CHALLENGE_PATTERNS:
                 if pat.search(body):
                     return AntiBotResult("cloudflare", 88, f"200 + body matches {pat.pattern!r}", status_code)
 
-            # CAPTCHA page
-            for pat in _CAPTCHA_PATTERNS:
+            # CAPTCHA challenge page.
+            # Use STRICT patterns only — "recaptcha" alone false-positives on pages that
+            # embed a login-form reCAPTCHA unrelated to bot blocking.
+            for pat in _CAPTCHA_CHALLENGE_PATTERNS:
                 if pat.search(body):
                     return AntiBotResult("captcha", 85, f"200 + body matches {pat.pattern!r}", status_code)
 
