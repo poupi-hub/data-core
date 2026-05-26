@@ -39,7 +39,11 @@ ssh poupi "systemctl list-timers 'poupi-*'"
 ssh poupi "systemctl status poupi-backup.service --no-pager -l"
 ssh poupi "systemctl status poupi-restore-test.service --no-pager -l"
 ssh poupi "ls -lh /opt/backups/logs | tail"
+ssh poupi "systemctl show poupi-backup.service -p OnFailure --value"
+ssh poupi "systemctl show poupi-restore-test.service -p OnFailure --value"
 ```
+
+Backup and restore-test failures trigger `poupi-systemd-failure@.service`, which calls `/opt/scripts/poupi-systemd-failure-alert.sh` and posts a critical alert to local Alertmanager.
 
 If Redis requires auth, a `NOAUTH Authentication required` response proves the service is reachable but the check must be run with the server-side secret.
 

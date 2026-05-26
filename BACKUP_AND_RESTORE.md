@@ -41,11 +41,19 @@ Automated server jobs were installed and validated on 2026-05-26:
 | `poupi-backup.timer` | daily `03:20 UTC` | creates PostgreSQL dumps and signal dataset archives | active, validated |
 | `poupi-restore-test.timer` | Sunday `04:20 UTC` | restore-tests the latest successful backup in an isolated Postgres container | active, validated |
 
+Failure alerting:
+
+- `poupi-backup.service` and `poupi-restore-test.service` use systemd `OnFailure`.
+- The failure handler is `/opt/scripts/poupi-systemd-failure-alert.sh`.
+- The handler posts a `PoupiSystemdUnitFailed` critical alert to local Alertmanager at `http://127.0.0.1:9093/api/v2/alerts`.
+- Dry-run validation completed with valid JSON; Alertmanager readiness returned `OK`.
+
 Server scripts:
 
 ```text
 /opt/scripts/poupi-backup.sh
 /opt/scripts/poupi-restore-test.sh
+/opt/scripts/poupi-systemd-failure-alert.sh
 ```
 
 Latest systemd validation:
@@ -67,6 +75,8 @@ Check automation:
 ssh poupi "systemctl list-timers 'poupi-*'"
 ssh poupi "systemctl status poupi-backup.service --no-pager -l"
 ssh poupi "systemctl status poupi-restore-test.service --no-pager -l"
+ssh poupi "systemctl show poupi-backup.service -p OnFailure --value"
+ssh poupi "systemctl show poupi-restore-test.service -p OnFailure --value"
 ```
 
 ## Critical Assets

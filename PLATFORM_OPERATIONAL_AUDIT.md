@@ -8,7 +8,7 @@ Scope: infrastructure, operations, security, backups, deployment, observability,
 
 PARTIAL.
 
-The platform is mostly cloud-first in practice, but not yet mature enough to call READY. Public database, Prometheus, Traefik dashboard, Coolify realtime and manual crypto API source binds have been removed or restricted. The main blockers are the unresolved `poupi-baby-worker` runtime decision, local/frontend reproducibility gaps, missing alerting on backup/restore-test failure, and remaining DNS hygiene for `coolify.poupi.com`.
+The platform is mostly cloud-first in practice, but not yet mature enough to call READY. Public database, Prometheus, Traefik dashboard, Coolify realtime and manual crypto API source binds have been removed or restricted. Backup/restore-test failure alerting now exists through systemd `OnFailure` and local Alertmanager. The main blockers are the unresolved `poupi-baby-worker` runtime decision, local/frontend reproducibility gaps, and remaining DNS hygiene for `coolify.poupi.com`.
 
 ## Current State
 
@@ -32,7 +32,7 @@ The notebook is no longer the primary runtime. Local Docker was not reachable du
 | Public Postgres | source bind removed; `poupi-crypto-db-1` now exposes only container port `5432/tcp` | residual risk low; firewall remains as defense in depth | keep Compose `db` service explicit and avoid reintroducing `ports` |
 | Public Prometheus | source bind removed; `prometheus` now exposes only container port `9090/tcp` | residual risk low; firewall remains as defense in depth | keep Prometheus internal-only |
 | Public Traefik dashboard/surface | source bind removed; no host listener on `8080` in latest validation | residual risk low; Coolify/proxy updates could reintroduce bind | keep source config without public `8080` and validate after updates |
-| Backup automation | daily backup and weekly restore-test timers are active and validated | residual risk is monitoring/alerting of failures | add alerting for failed systemd units |
+| Backup automation | daily backup and weekly restore-test timers are active and validated; failures trigger local Alertmanager through systemd `OnFailure` | residual risk is end-to-end notification delivery outside Alertmanager | verify receiver delivery path after alert routing is confirmed |
 | poupi-baby worker not running | no running `poupi-baby-worker` container or monitoring alias; old compose worker is exited and points at a separate Compose Postgres/Redis stack | worker runtime/queue processing may be absent unless handled elsewhere; starting the old worker risks split-brain queues/data | do not start old Compose worker; deploy a Coolify-managed worker using the same production DB/Redis env if worker processing is required |
 
 ## Medium Risks
@@ -77,7 +77,7 @@ Public edge should be Traefik on `80/443`. Administrative and data services shou
 ### P0 - Same Day
 
 1. Deploy a proper Coolify-managed `poupi-baby-worker` only if queue processing is required; do not start the old local Compose worker.
-2. Add alerting for failed backup/restore-test units.
+2. Verify end-to-end receiver delivery for failed backup/restore-test alerts.
 3. Record firewall and public listener baseline after each deploy/reboot.
 
 ### P1 - This Week
@@ -136,6 +136,7 @@ Public edge should be Traefik on `80/443`. Administrative and data services shou
 - Coolify-managed `poupi-crypto` HTTPS route now returns `200 {"status":"ok"}` through Traefik.
 - Remaining Traefik ACME errors are for `coolify.poupi.com`, which has no valid DNS record and has hit Let's Encrypt failed-authorization rate limiting; this is separate from the crypto route.
 - Automated daily backup and weekly restore-test systemd timers were installed and validated successfully.
+- Backup and restore-test services now have systemd `OnFailure` hooks to local Alertmanager; handler script passed dry-run JSON validation and Alertmanager readiness returned `OK`.
 - `poupi-baby-worker` decision recorded: old Compose worker must not be started because it targets a separate local Compose database/Redis stack; create a production worker app with shared production env instead.
 - Local Git and frontend structure inspected.
 - New shell scripts syntax-checked with remote `bash -n`.
