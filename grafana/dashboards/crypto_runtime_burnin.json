@@ -1,0 +1,747 @@
+{
+  "uid": "crypto-runtime-burnin-s",
+  "title": "Crypto — Runtime Burn-In & Observability (Phase S)",
+  "description": "Phase S: Runtime burn-in validation, metrics integrity, dashboard health, collector reliability, replay continuity, incident noise, cold-start resilience and operational drift.",
+  "tags": ["crypto", "burnin", "phase-s", "observability"],
+  "timezone": "browser",
+  "refresh": "30s",
+  "time": { "from": "now-12h", "to": "now" },
+  "schemaVersion": 38,
+  "version": 1,
+  "editable": true,
+  "graphTooltip": 1,
+  "templating": {
+    "list": [
+      {
+        "name": "datasource",
+        "type": "datasource",
+        "pluginId": "prometheus",
+        "label": "Datasource",
+        "current": {},
+        "hide": 0
+      }
+    ]
+  },
+  "panels": [
+    {
+      "type": "row",
+      "id": 1,
+      "title": "Phase S — Burn-In Overview",
+      "collapsed": false,
+      "gridPos": { "x": 0, "y": 0, "w": 24, "h": 1 }
+    },
+    {
+      "type": "gauge",
+      "id": 2,
+      "title": "Runtime Stability Score",
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "targets": [{ "expr": "runtime_stability_score", "legendFormat": "stability" }],
+      "gridPos": { "x": 0, "y": 1, "w": 6, "h": 5 },
+      "fieldConfig": {
+        "defaults": {
+          "min": 0, "max": 100, "unit": "short",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red",    "value": null },
+              { "color": "orange", "value": 60 },
+              { "color": "yellow", "value": 75 },
+              { "color": "green",  "value": 85 }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "type": "gauge",
+      "id": 3,
+      "title": "Burn-In Operational Maturity",
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "targets": [{ "expr": "burnin_operational_maturity_score", "legendFormat": "maturity" }],
+      "gridPos": { "x": 6, "y": 1, "w": 6, "h": 5 },
+      "fieldConfig": {
+        "defaults": {
+          "min": 0, "max": 100, "unit": "short",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red",    "value": null },
+              { "color": "orange", "value": 60 },
+              { "color": "yellow", "value": 75 },
+              { "color": "green",  "value": 85 }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "type": "gauge",
+      "id": 4,
+      "title": "Observability Readiness",
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "targets": [{ "expr": "observability_readiness_score", "legendFormat": "obs" }],
+      "gridPos": { "x": 12, "y": 1, "w": 6, "h": 5 },
+      "fieldConfig": {
+        "defaults": {
+          "min": 0, "max": 100, "unit": "short",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red",    "value": null },
+              { "color": "orange", "value": 60 },
+              { "color": "green",  "value": 80 }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "type": "gauge",
+      "id": 5,
+      "title": "Burn-In Readiness",
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "targets": [{ "expr": "burnin_readiness_score", "legendFormat": "burnin" }],
+      "gridPos": { "x": 18, "y": 1, "w": 6, "h": 5 },
+      "fieldConfig": {
+        "defaults": {
+          "min": 0, "max": 100, "unit": "short",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red",    "value": null },
+              { "color": "orange", "value": 60 },
+              { "color": "green",  "value": 80 }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "type": "row",
+      "id": 10,
+      "title": "S-1 — Runtime Burn-In Engine",
+      "collapsed": false,
+      "gridPos": { "x": 0, "y": 6, "w": 24, "h": 1 }
+    },
+    {
+      "type": "gauge",
+      "id": 11,
+      "title": "Burn-In Stability Score",
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "targets": [{ "expr": "burnin_stability_score", "legendFormat": "stability" }],
+      "gridPos": { "x": 0, "y": 7, "w": 8, "h": 5 },
+      "fieldConfig": {
+        "defaults": {
+          "min": 0, "max": 100, "unit": "short",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red",    "value": null },
+              { "color": "yellow", "value": 70 },
+              { "color": "green",  "value": 85 }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "type": "gauge",
+      "id": 12,
+      "title": "Runtime Burn-In Score",
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "targets": [{ "expr": "runtime_burnin_score", "legendFormat": "burnin" }],
+      "gridPos": { "x": 8, "y": 7, "w": 8, "h": 5 },
+      "fieldConfig": {
+        "defaults": {
+          "min": 0, "max": 100, "unit": "short",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red",    "value": null },
+              { "color": "yellow", "value": 70 },
+              { "color": "green",  "value": 85 }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "type": "gauge",
+      "id": 13,
+      "title": "Long Session Integrity",
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "targets": [{ "expr": "long_session_integrity_score", "legendFormat": "integrity" }],
+      "gridPos": { "x": 16, "y": 7, "w": 8, "h": 5 },
+      "fieldConfig": {
+        "defaults": {
+          "min": 0, "max": 100, "unit": "short",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red",    "value": null },
+              { "color": "yellow", "value": 70 },
+              { "color": "green",  "value": 85 }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "type": "row",
+      "id": 20,
+      "title": "S-2 — Metrics Integrity",
+      "collapsed": false,
+      "gridPos": { "x": 0, "y": 12, "w": 24, "h": 1 }
+    },
+    {
+      "type": "gauge",
+      "id": 21,
+      "title": "Metrics Integrity Score",
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "targets": [{ "expr": "metrics_integrity_score", "legendFormat": "integrity" }],
+      "gridPos": { "x": 0, "y": 13, "w": 8, "h": 5 },
+      "fieldConfig": {
+        "defaults": {
+          "min": 0, "max": 100, "unit": "short",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red",    "value": null },
+              { "color": "orange", "value": 60 },
+              { "color": "green",  "value": 85 }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "type": "gauge",
+      "id": 22,
+      "title": "Metrics Continuity Score",
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "targets": [{ "expr": "metrics_continuity_score", "legendFormat": "continuity" }],
+      "gridPos": { "x": 8, "y": 13, "w": 8, "h": 5 },
+      "fieldConfig": {
+        "defaults": {
+          "min": 0, "max": 100, "unit": "short",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red",    "value": null },
+              { "color": "yellow", "value": 70 },
+              { "color": "green",  "value": 85 }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "type": "gauge",
+      "id": 23,
+      "title": "Observability Health Score",
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "targets": [{ "expr": "observability_health_score", "legendFormat": "obs health" }],
+      "gridPos": { "x": 16, "y": 13, "w": 8, "h": 5 },
+      "fieldConfig": {
+        "defaults": {
+          "min": 0, "max": 100, "unit": "short",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red",    "value": null },
+              { "color": "yellow", "value": 70 },
+              { "color": "green",  "value": 85 }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "type": "row",
+      "id": 30,
+      "title": "S-3 — Grafana Dashboard Validation",
+      "collapsed": false,
+      "gridPos": { "x": 0, "y": 18, "w": 24, "h": 1 }
+    },
+    {
+      "type": "gauge",
+      "id": 31,
+      "title": "Dashboard Integrity Score",
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "targets": [{ "expr": "dashboard_integrity_score", "legendFormat": "integrity" }],
+      "gridPos": { "x": 0, "y": 19, "w": 8, "h": 5 },
+      "fieldConfig": {
+        "defaults": {
+          "min": 0, "max": 100, "unit": "short",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red",    "value": null },
+              { "color": "yellow", "value": 66 },
+              { "color": "green",  "value": 100 }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "type": "gauge",
+      "id": 32,
+      "title": "Panel Health Score",
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "targets": [{ "expr": "panel_health_score", "legendFormat": "panels" }],
+      "gridPos": { "x": 8, "y": 19, "w": 8, "h": 5 },
+      "fieldConfig": {
+        "defaults": {
+          "min": 0, "max": 100, "unit": "short",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red",    "value": null },
+              { "color": "yellow", "value": 80 },
+              { "color": "green",  "value": 95 }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "type": "gauge",
+      "id": 33,
+      "title": "Visualization Consistency",
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "targets": [{ "expr": "visualization_consistency_score", "legendFormat": "consistency" }],
+      "gridPos": { "x": 16, "y": 19, "w": 8, "h": 5 },
+      "fieldConfig": {
+        "defaults": {
+          "min": 0, "max": 100, "unit": "short",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red",    "value": null },
+              { "color": "yellow", "value": 70 },
+              { "color": "green",  "value": 85 }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "type": "row",
+      "id": 40,
+      "title": "S-4 — Collector Reliability",
+      "collapsed": false,
+      "gridPos": { "x": 0, "y": 24, "w": 24, "h": 1 }
+    },
+    {
+      "type": "gauge",
+      "id": 41,
+      "title": "Collector Reliability Score",
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "targets": [{ "expr": "collector_reliability_score", "legendFormat": "reliability" }],
+      "gridPos": { "x": 0, "y": 25, "w": 8, "h": 5 },
+      "fieldConfig": {
+        "defaults": {
+          "min": 0, "max": 100, "unit": "short",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red",    "value": null },
+              { "color": "orange", "value": 60 },
+              { "color": "green",  "value": 85 }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "type": "gauge",
+      "id": 42,
+      "title": "Normalization Integrity",
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "targets": [{ "expr": "normalization_integrity_score", "legendFormat": "normalization" }],
+      "gridPos": { "x": 8, "y": 25, "w": 8, "h": 5 },
+      "fieldConfig": {
+        "defaults": {
+          "min": 0, "max": 100, "unit": "short",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red",    "value": null },
+              { "color": "yellow", "value": 90 },
+              { "color": "green",  "value": 99 }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "type": "gauge",
+      "id": 43,
+      "title": "Data Freshness Score",
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "targets": [{ "expr": "data_freshness_score", "legendFormat": "freshness" }],
+      "gridPos": { "x": 16, "y": 25, "w": 8, "h": 5 },
+      "fieldConfig": {
+        "defaults": {
+          "min": 0, "max": 100, "unit": "short",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red",    "value": null },
+              { "color": "orange", "value": 50 },
+              { "color": "green",  "value": 80 }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "type": "row",
+      "id": 50,
+      "title": "S-5 — Replay Burn-In Integrity",
+      "collapsed": false,
+      "gridPos": { "x": 0, "y": 30, "w": 24, "h": 1 }
+    },
+    {
+      "type": "gauge",
+      "id": 51,
+      "title": "Replay Burn-In Score",
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "targets": [{ "expr": "replay_burnin_score", "legendFormat": "replay burnin" }],
+      "gridPos": { "x": 0, "y": 31, "w": 8, "h": 5 },
+      "fieldConfig": {
+        "defaults": {
+          "min": 0, "max": 100, "unit": "short",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red",    "value": null },
+              { "color": "yellow", "value": 70 },
+              { "color": "green",  "value": 85 }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "type": "gauge",
+      "id": 52,
+      "title": "Replay Continuity Score",
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "targets": [{ "expr": "replay_continuity_score", "legendFormat": "continuity" }],
+      "gridPos": { "x": 8, "y": 31, "w": 8, "h": 5 },
+      "fieldConfig": {
+        "defaults": {
+          "min": 0, "max": 100, "unit": "short",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red",    "value": null },
+              { "color": "yellow", "value": 70 },
+              { "color": "green",  "value": 85 }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "type": "gauge",
+      "id": 53,
+      "title": "Replay Consistency Score",
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "targets": [{ "expr": "replay_consistency_score", "legendFormat": "consistency" }],
+      "gridPos": { "x": 16, "y": 31, "w": 8, "h": 5 },
+      "fieldConfig": {
+        "defaults": {
+          "min": 0, "max": 100, "unit": "short",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red",    "value": null },
+              { "color": "yellow", "value": 70 },
+              { "color": "green",  "value": 90 }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "type": "row",
+      "id": 60,
+      "title": "S-6 — Incident Noise Reduction",
+      "collapsed": false,
+      "gridPos": { "x": 0, "y": 36, "w": 24, "h": 1 }
+    },
+    {
+      "type": "gauge",
+      "id": 61,
+      "title": "Incident Signal Quality",
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "targets": [{ "expr": "incident_signal_quality_score", "legendFormat": "signal quality" }],
+      "gridPos": { "x": 0, "y": 37, "w": 8, "h": 5 },
+      "fieldConfig": {
+        "defaults": {
+          "min": 0, "max": 100, "unit": "short",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red",    "value": null },
+              { "color": "orange", "value": 60 },
+              { "color": "green",  "value": 85 }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "type": "gauge",
+      "id": 62,
+      "title": "Alert Precision Score",
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "targets": [{ "expr": "alert_precision_score", "legendFormat": "precision" }],
+      "gridPos": { "x": 8, "y": 37, "w": 8, "h": 5 },
+      "fieldConfig": {
+        "defaults": {
+          "min": 0, "max": 100, "unit": "short",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red",    "value": null },
+              { "color": "yellow", "value": 70 },
+              { "color": "green",  "value": 85 }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "type": "gauge",
+      "id": 63,
+      "title": "Operational Noise Score",
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "targets": [{ "expr": "operational_noise_score", "legendFormat": "noise" }],
+      "gridPos": { "x": 16, "y": 37, "w": 8, "h": 5 },
+      "fieldConfig": {
+        "defaults": {
+          "min": 0, "max": 100, "unit": "short",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red",    "value": null },
+              { "color": "yellow", "value": 70 },
+              { "color": "green",  "value": 85 }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "type": "row",
+      "id": 70,
+      "title": "S-7 — Cold Start Resilience",
+      "collapsed": false,
+      "gridPos": { "x": 0, "y": 42, "w": 24, "h": 1 }
+    },
+    {
+      "type": "gauge",
+      "id": 71,
+      "title": "Cold Start Resilience Score",
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "targets": [{ "expr": "cold_start_resilience_score", "legendFormat": "resilience" }],
+      "gridPos": { "x": 0, "y": 43, "w": 12, "h": 6 },
+      "fieldConfig": {
+        "defaults": {
+          "min": 0, "max": 100, "unit": "short",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red",    "value": null },
+              { "color": "orange", "value": 50 },
+              { "color": "yellow", "value": 70 },
+              { "color": "green",  "value": 85 }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "type": "stat",
+      "id": 72,
+      "title": "Burn-In Uptime (h)",
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "targets": [{ "expr": "burnin_uptime_hours", "legendFormat": "uptime" }],
+      "gridPos": { "x": 12, "y": 43, "w": 12, "h": 6 },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "h",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "blue",   "value": null },
+              { "color": "green",  "value": 24 }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "type": "row",
+      "id": 80,
+      "title": "S-8 — Operational Drift",
+      "collapsed": false,
+      "gridPos": { "x": 0, "y": 49, "w": 24, "h": 1 }
+    },
+    {
+      "type": "gauge",
+      "id": 81,
+      "title": "Operational Drift Score",
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "targets": [{ "expr": "operational_drift_score", "legendFormat": "drift" }],
+      "gridPos": { "x": 0, "y": 50, "w": 8, "h": 5 },
+      "fieldConfig": {
+        "defaults": {
+          "min": 0, "max": 100, "unit": "short",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red",    "value": null },
+              { "color": "yellow", "value": 70 },
+              { "color": "green",  "value": 85 }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "type": "gauge",
+      "id": 82,
+      "title": "Runtime Consistency Trend",
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "targets": [{ "expr": "runtime_consistency_trend", "legendFormat": "consistency" }],
+      "gridPos": { "x": 8, "y": 50, "w": 8, "h": 5 },
+      "fieldConfig": {
+        "defaults": {
+          "min": 0, "max": 100, "unit": "short",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red",    "value": null },
+              { "color": "yellow", "value": 70 },
+              { "color": "green",  "value": 85 }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "type": "gauge",
+      "id": 83,
+      "title": "Stability Trend Score",
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "targets": [{ "expr": "stability_trend_score", "legendFormat": "trend" }],
+      "gridPos": { "x": 16, "y": 50, "w": 8, "h": 5 },
+      "fieldConfig": {
+        "defaults": {
+          "min": 0, "max": 100, "unit": "short",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red",    "value": null },
+              { "color": "yellow", "value": 70 },
+              { "color": "green",  "value": 85 }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "type": "row",
+      "id": 90,
+      "title": "Activity Counters",
+      "collapsed": false,
+      "gridPos": { "x": 0, "y": 55, "w": 24, "h": 1 }
+    },
+    {
+      "type": "stat",
+      "id": 91,
+      "title": "Burn-In Validations (total)",
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "targets": [{ "expr": "burnin_validations_total", "legendFormat": "validations" }],
+      "gridPos": { "x": 0, "y": 56, "w": 6, "h": 4 },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "blue", "value": null }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "type": "stat",
+      "id": 92,
+      "title": "Burn-In Failures (total)",
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "targets": [{ "expr": "burnin_failures_total", "legendFormat": "failures" }],
+      "gridPos": { "x": 6, "y": 56, "w": 6, "h": 4 },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "red",   "value": 1 }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "type": "stat",
+      "id": 93,
+      "title": "Temporal Gaps Detected",
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "targets": [{ "expr": "burnin_gaps_total", "legendFormat": "gaps" }],
+      "gridPos": { "x": 12, "y": 56, "w": 6, "h": 4 },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green",  "value": null },
+              { "color": "yellow", "value": 3 },
+              { "color": "red",    "value": 10 }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "type": "stat",
+      "id": 94,
+      "title": "Noisy Subsystems",
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "targets": [{ "expr": "burnin_noisy_subsystems", "legendFormat": "noisy" }],
+      "gridPos": { "x": 18, "y": 56, "w": 6, "h": 4 },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green",  "value": null },
+              { "color": "yellow", "value": 1 },
+              { "color": "red",    "value": 3 }
+            ]
+          }
+        }
+      }
+    }
+  ]
+}

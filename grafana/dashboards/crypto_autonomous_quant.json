@@ -1,0 +1,457 @@
+{
+  "__inputs": [],
+  "__requires": [
+    { "type": "grafana", "id": "grafana", "name": "Grafana", "version": "9.0.0" },
+    { "type": "datasource", "id": "prometheus", "name": "Prometheus", "version": "1.0.0" }
+  ],
+  "annotations": { "list": [] },
+  "description": "Autonomous Adaptive Quant Evolution — Phase N Executive Dashboard",
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [],
+  "liveNow": false,
+  "panels": [
+
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 0 },
+      "id": 100,
+      "title": "🌊 Market Drift Intelligence",
+      "type": "row"
+    },
+
+    {
+      "datasource": "Prometheus",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 30 },
+              { "color": "orange", "value": 50 },
+              { "color": "red", "value": 70 }
+            ]
+          },
+          "unit": "short",
+          "max": 100,
+          "min": 0
+        }
+      },
+      "gridPos": { "h": 6, "w": 6, "x": 0, "y": 1 },
+      "id": 101,
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "orientation": "auto", "textMode": "auto", "colorMode": "background" },
+      "title": "Market Drift Score",
+      "type": "stat",
+      "targets": [{ "expr": "market_drift_score", "legendFormat": "drift" }]
+    },
+
+    {
+      "datasource": "Prometheus",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 30 },
+              { "color": "orange", "value": 55 },
+              { "color": "red", "value": 75 }
+            ]
+          },
+          "unit": "short", "max": 100, "min": 0
+        }
+      },
+      "gridPos": { "h": 6, "w": 6, "x": 6, "y": 1 },
+      "id": 102,
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background" },
+      "title": "Edge Decay Score",
+      "type": "stat",
+      "targets": [{ "expr": "edge_decay_score", "legendFormat": "edge_decay" }]
+    },
+
+    {
+      "datasource": "Prometheus",
+      "fieldConfig": {
+        "defaults": { "color": { "mode": "palette-classic" }, "unit": "short", "min": 0, "max": 100 }
+      },
+      "gridPos": { "h": 6, "w": 12, "x": 12, "y": 1 },
+      "id": 103,
+      "options": { "legend": { "displayMode": "list", "placement": "bottom" } },
+      "title": "Drift History (market_drift_score over time)",
+      "type": "timeseries",
+      "targets": [
+        { "expr": "market_drift_score", "legendFormat": "market_drift" },
+        { "expr": "edge_decay_score", "legendFormat": "edge_decay" }
+      ]
+    },
+
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 7 },
+      "id": 200,
+      "title": "🔄 Strategy Lifecycle",
+      "type": "row"
+    },
+
+    {
+      "datasource": "Prometheus",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [{ "color": "green", "value": null }, { "color": "orange", "value": 1 }]
+          }
+        }
+      },
+      "gridPos": { "h": 5, "w": 6, "x": 0, "y": 8 },
+      "id": 201,
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background" },
+      "title": "Strategy Retirements Total",
+      "type": "stat",
+      "targets": [{ "expr": "sum(strategy_retirement_total) or vector(0)", "legendFormat": "retired" }]
+    },
+
+    {
+      "datasource": "Prometheus",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [{ "color": "blue", "value": null }]
+          }
+        }
+      },
+      "gridPos": { "h": 5, "w": 6, "x": 6, "y": 8 },
+      "id": 202,
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background" },
+      "title": "Strategy Promotions Total",
+      "type": "stat",
+      "targets": [{ "expr": "sum(strategy_promotions_total) or vector(0)", "legendFormat": "promotions" }]
+    },
+
+    {
+      "datasource": "Prometheus",
+      "fieldConfig": {
+        "defaults": { "color": { "mode": "palette-classic" } }
+      },
+      "gridPos": { "h": 5, "w": 12, "x": 12, "y": 8 },
+      "id": 203,
+      "options": { "legend": { "displayMode": "list", "placement": "right" } },
+      "title": "Lifecycle Transitions over Time",
+      "type": "timeseries",
+      "targets": [
+        { "expr": "increase(strategy_retirement_total[1h])", "legendFormat": "retirements/h" },
+        { "expr": "increase(strategy_promotions_total[1h])", "legendFormat": "promotions/h" }
+      ]
+    },
+
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 13 },
+      "id": 300,
+      "title": "🎯 Adaptive Exposure & Portfolio",
+      "type": "row"
+    },
+
+    {
+      "datasource": "Prometheus",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red", "value": null },
+              { "color": "orange", "value": 40 },
+              { "color": "yellow", "value": 60 },
+              { "color": "green", "value": 80 }
+            ]
+          },
+          "unit": "short", "max": 100, "min": 0
+        }
+      },
+      "gridPos": { "h": 6, "w": 6, "x": 0, "y": 14 },
+      "id": 301,
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background" },
+      "title": "Adaptive Exposure Score",
+      "type": "stat",
+      "targets": [{ "expr": "adaptive_exposure_score", "legendFormat": "exposure" }]
+    },
+
+    {
+      "datasource": "Prometheus",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red", "value": null },
+              { "color": "orange", "value": 40 },
+              { "color": "yellow", "value": 60 },
+              { "color": "green", "value": 75 }
+            ]
+          },
+          "unit": "short", "max": 100, "min": 0
+        }
+      },
+      "gridPos": { "h": 6, "w": 6, "x": 6, "y": 14 },
+      "id": 302,
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background" },
+      "title": "Portfolio Resilience Score",
+      "type": "stat",
+      "targets": [{ "expr": "portfolio_resilience_score", "legendFormat": "resilience" }]
+    },
+
+    {
+      "datasource": "Prometheus",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red", "value": null },
+              { "color": "orange", "value": 40 },
+              { "color": "yellow", "value": 60 },
+              { "color": "green", "value": 75 }
+            ]
+          },
+          "unit": "short", "max": 100, "min": 0
+        }
+      },
+      "gridPos": { "h": 6, "w": 6, "x": 12, "y": 14 },
+      "id": 303,
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background" },
+      "title": "Portfolio Health Score",
+      "type": "stat",
+      "targets": [{ "expr": "portfolio_health_score", "legendFormat": "portfolio_health" }]
+    },
+
+    {
+      "datasource": "Prometheus",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" }, "unit": "short", "max": 100, "min": 0
+        }
+      },
+      "gridPos": { "h": 6, "w": 6, "x": 18, "y": 14 },
+      "id": 304,
+      "options": { "legend": { "displayMode": "list" } },
+      "title": "Portfolio Scores Timeline",
+      "type": "timeseries",
+      "targets": [
+        { "expr": "portfolio_resilience_score", "legendFormat": "resilience" },
+        { "expr": "portfolio_health_score", "legendFormat": "health" },
+        { "expr": "adaptive_exposure_score", "legendFormat": "exposure" }
+      ]
+    },
+
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 20 },
+      "id": 400,
+      "title": "🔬 Research Prioritization & Parameters",
+      "type": "row"
+    },
+
+    {
+      "datasource": "Prometheus",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 40 },
+              { "color": "orange", "value": 60 },
+              { "color": "red", "value": 80 }
+            ]
+          },
+          "unit": "short", "max": 100, "min": 0
+        }
+      },
+      "gridPos": { "h": 5, "w": 8, "x": 0, "y": 21 },
+      "id": 401,
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background" },
+      "title": "Research Priority Score (Fleet Urgency)",
+      "type": "stat",
+      "targets": [{ "expr": "research_priority_score", "legendFormat": "urgency" }]
+    },
+
+    {
+      "datasource": "Prometheus",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red", "value": null },
+              { "color": "orange", "value": 40 },
+              { "color": "yellow", "value": 60 },
+              { "color": "green", "value": 80 }
+            ]
+          },
+          "unit": "short", "max": 100, "min": 0
+        }
+      },
+      "gridPos": { "h": 5, "w": 8, "x": 8, "y": 21 },
+      "id": 402,
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background" },
+      "title": "Parameter Stability Score",
+      "type": "stat",
+      "targets": [{ "expr": "parameter_stability_score", "legendFormat": "param_stability" }]
+    },
+
+    {
+      "datasource": "Prometheus",
+      "fieldConfig": {
+        "defaults": { "color": { "mode": "palette-classic" } }
+      },
+      "gridPos": { "h": 5, "w": 8, "x": 16, "y": 21 },
+      "id": 403,
+      "options": { "legend": { "displayMode": "list" } },
+      "title": "Research & Parameter Timeline",
+      "type": "timeseries",
+      "targets": [
+        { "expr": "research_priority_score", "legendFormat": "research_urgency" },
+        { "expr": "parameter_stability_score", "legendFormat": "param_stability" }
+      ]
+    },
+
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 26 },
+      "id": 500,
+      "title": "📊 Strategy Degradation & Fragility",
+      "type": "row"
+    },
+
+    {
+      "datasource": "Prometheus",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" }, "unit": "short", "max": 100, "min": 0
+        }
+      },
+      "gridPos": { "h": 7, "w": 12, "x": 0, "y": 27 },
+      "id": 501,
+      "options": { "legend": { "displayMode": "list", "placement": "bottom" } },
+      "title": "Strategy Degradation Scores by Strategy",
+      "type": "timeseries",
+      "targets": [
+        { "expr": "strategy_degradation_score", "legendFormat": "{{strategy_id}} degradation" },
+        { "expr": "strategy_health_score", "legendFormat": "{{strategy_id}} health" }
+      ]
+    },
+
+    {
+      "datasource": "Prometheus",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" }, "unit": "short", "max": 100, "min": 0
+        }
+      },
+      "gridPos": { "h": 7, "w": 12, "x": 12, "y": 27 },
+      "id": 502,
+      "options": { "legend": { "displayMode": "list", "placement": "bottom" } },
+      "title": "Strategy Fragility & Overfitting by Strategy",
+      "type": "timeseries",
+      "targets": [
+        { "expr": "strategy_fragility_score", "legendFormat": "{{strategy_id}} fragility" },
+        { "expr": "strategy_overfitting_score", "legendFormat": "{{strategy_id}} overfitting" }
+      ]
+    },
+
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 34 },
+      "id": 600,
+      "title": "🤖 Autonomous Loop & Recommendations",
+      "type": "row"
+    },
+
+    {
+      "datasource": "Prometheus",
+      "fieldConfig": {
+        "defaults": { "color": { "mode": "palette-classic" } }
+      },
+      "gridPos": { "h": 6, "w": 12, "x": 0, "y": 35 },
+      "id": 601,
+      "options": { "legend": { "displayMode": "list" } },
+      "title": "Research Loop Runs (success vs error)",
+      "type": "timeseries",
+      "targets": [
+        { "expr": "increase(research_loop_runs_total{status=\"success\"}[1h])", "legendFormat": "success/h" },
+        { "expr": "increase(research_loop_runs_total{status=\"error\"}[1h])", "legendFormat": "error/h" }
+      ]
+    },
+
+    {
+      "datasource": "Prometheus",
+      "fieldConfig": {
+        "defaults": { "color": { "mode": "palette-classic" } }
+      },
+      "gridPos": { "h": 6, "w": 12, "x": 12, "y": 35 },
+      "id": 602,
+      "options": { "legend": { "displayMode": "list" } },
+      "title": "Autonomous Recommendations Generated",
+      "type": "timeseries",
+      "targets": [
+        { "expr": "increase(autonomous_recommendations_total[1h])", "legendFormat": "{{type}}/h" }
+      ]
+    },
+
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 41 },
+      "id": 700,
+      "title": "🏆 Composite Intelligence Score",
+      "type": "row"
+    },
+
+    {
+      "datasource": "Prometheus",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" }, "unit": "short", "max": 100, "min": 0
+        }
+      },
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 42 },
+      "id": 701,
+      "options": { "legend": { "displayMode": "list", "placement": "right" } },
+      "title": "All Intelligence Scores — Composite View",
+      "type": "timeseries",
+      "targets": [
+        { "expr": "portfolio_resilience_score", "legendFormat": "portfolio_resilience" },
+        { "expr": "portfolio_health_score",     "legendFormat": "portfolio_health" },
+        { "expr": "adaptive_exposure_score",    "legendFormat": "adaptive_exposure" },
+        { "expr": "100 - market_drift_score",   "legendFormat": "market_stability (inv. drift)" },
+        { "expr": "parameter_stability_score",  "legendFormat": "param_stability" },
+        { "expr": "100 - research_priority_score", "legendFormat": "research_health (inv. urgency)" }
+      ]
+    }
+
+  ],
+  "refresh": "30s",
+  "schemaVersion": 36,
+  "style": "dark",
+  "tags": ["crypto", "quant", "autonomous", "phase-n"],
+  "templating": { "list": [] },
+  "time": { "from": "now-24h", "to": "now" },
+  "timepicker": {},
+  "timezone": "UTC",
+  "title": "Crypto — Autonomous Quant Evolution (Phase N)",
+  "uid": "crypto-autonomous-quant-n",
+  "version": 1
+}

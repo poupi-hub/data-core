@@ -1,0 +1,132 @@
+groups:
+  - name: poupi-crypto-volatile-runtime
+    interval: 60s
+    rules:
+
+      # ── Scheduler health ────────────────────────────────────────────────────
+
+      - alert: VolatileSchedulerStale
+        expr: >
+          time() - scheduler_last_success_timestamp{job="poupi-crypto-volatile", job_id="analyze_signals"} > 7200
+        for: 5m
+        labels:
+          severity: warning
+          runtime: volatile
+        annotations:
+          summary: "Volatile analyze_signals job stale > 2h"
+          description: "poupi-crypto-volatile analyze_signals has not succeeded in {{ $value | humanizeDuration }}. Volatile runtime may be down or scheduler frozen."
+
+      - alert: VolatileSchedulerJobFailing
+        expr: >
+          increase(poupi_crypto_scheduler_job_failures_total{job="poupi-crypto-volatile"}[30m]) > 3
+        for: 0m
+        labels:
+          severity: warning
+          runtime: volatile
+        annotations:
+          summary: "Volatile scheduler job {{ $labels.job_id }} failing repeatedly"
+          description: "{{ $value | printf \"%.0f\" }} failures in 30m for job {{ $labels.job_id }} on volatile runtime."
+
+      # ── Memory safety ───────────────────────────────────────────────────────
+
+      - alert: VolatileContainerMemoryHigh
+        expr: >
+          container_memory_usage_ratio{job="poupi-crypto-volatile"} > 0.85
+        for: 5m
+        labels:
+          severity: warning
+          runtime: volatile
+        annotations:
+          summary: "Volatile runtime memory usage > 85%"
+          description: "container_memory_usage_ratio = {{ $value | printf \"%.1f%%\" }}. Volatile mem_limit is 512m — reduce ANALYSIS_PAIRS if sustained."
+
+      - alert: VolatileOOMKilled
+        expr: >
+          container_oom_killed_total{job="poupi-crypto-volatile"} > 0
+        for: 0m
+        labels:
+          severity: critical
+          runtime: volatile
+        annotations:
+          summary: "Volatile runtime OOM-killed"
+          description: "container_oom_killed_total = {{ $value }}. Immediate investigation required. Main runtime unaffected."
+
+      # ── Signal health ───────────────────────────────────────────────────────
+
+      - alert: VolatileNoSignalsAccepted
+        expr: >
+          increase(poupi_crypto_signals_generated_total{job="poupi-crypto-volatile"}[48h]) == 0
+        for: 0m
+        labels:
+          severity: warning
+          runtime: volatile
+        annotations:
+          summary: "Volatile runtime: zero signals accepted in 48h"
+          description: "No signals passed filters in 48 hours. Check data-core coverage for volatile pairs (SOL/DOGE/XRP)."
+
+      - alert: VolatileDataCoreUnreachable
+        expr: >
+          crypto_data_core_reachable{job="poupi-crypto-volatile"} == 0
+        for: 10m
+        labels:
+          severity: warning
+          runtime: volatile
+        annotations:
+          summary: "Volatile runtime cannot reach data-core"
+          description: "Volatile runtime has lost data-core connectivity. Signal collection paused. Main runtime unaffected."
+
+      # ── Isolation safety ────────────────────────────────────────────────────
+
+      - alert: VolatileRedisDown
+        expr: >
+          redis_up{job="poupi-crypto-volatile"} == 0
+        for: 5m
+        labels:
+          severity: warning
+          runtime: volatile
+        annotations:
+          summary: "Volatile Redis unavailable"
+          description: "Volatile Redis (volatile-redis:6379) is unreachable. Scheduler runs without distributed lock."
+
+  - name: poupi-crypto-volatile-quantitative
+    interval: 300s
+    rules:
+
+      # ── Regime diversity hypothesis validation ──────────────────────────────
+
+      - alert: VolatileMonoRegimePersistent
+        expr: >
+          signal_regime_entropy{job="poupi-crypto-volatile"} < 0.4
+        for: 30m
+        labels:
+          severity: info
+          runtime: volatile
+        annotations:
+          summary: "Volatile regime_entropy < 0.4 — hypothesis may be failing"
+          description: "regime_entropy = {{ $value | printf \"%.2f\" }}. Volatile runtime is not generating regime diversity. Evaluate after 14 days before declaring hypothesis failure."
+
+      # ── Outcome collection rate ─────────────────────────────────────────────
+
+      - alert: VolatileLowOutcomeRate
+        expr: >
+          signal_outcome_closed_ratio{job="poupi-crypto-volatile"} < 0.2
+        for: 60m
+        labels:
+          severity: info
+          runtime: volatile
+        annotations:
+          summary: "Volatile outcome_closed_ratio < 20%"
+          description: "outcome_closed_ratio = {{ $value | printf \"%.1f%%\" }}. Less than 20% of replay events have closed outcomes. Expected to improve as positions accumulate over 14-30 days."
+
+      # ── Replay coverage ─────────────────────────────────────────────────────
+
+      - alert: VolatileLowReplayCoverage
+        expr: >
+          signal_replay_coverage{job="poupi-crypto-volatile"} < 0.3
+        for: 60m
+        labels:
+          severity: info
+          runtime: volatile
+        annotations:
+          summary: "Volatile replay_coverage < 30%"
+          description: "replay_coverage = {{ $value | printf \"%.1f%%\" }}. Dataset still immature — this is expected in the first 7 days. Re-evaluate at day 14."

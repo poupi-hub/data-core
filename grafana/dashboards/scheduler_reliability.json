@@ -1,0 +1,106 @@
+{
+  "title": "Scheduler Reliability",
+  "uid": "scheduler-reliability",
+  "schemaVersion": 38,
+  "version": 1,
+  "refresh": "30s",
+  "tags": ["scheduler", "reliability", "heartbeat"],
+  "panels": [
+    {
+      "id": 1,
+      "title": "Scheduler Heartbeat Age",
+      "type": "stat",
+      "gridPos": { "x": 0, "y": 0, "w": 6, "h": 4 },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] } },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "thresholds": { "steps": [{ "color": "green", "value": 0 }, { "color": "yellow", "value": 600 }, { "color": "red", "value": 1800 }] }
+        }
+      },
+      "targets": [{ "expr": "scheduler_heartbeat_age_seconds", "legendFormat": "Heartbeat Age" }]
+    },
+    {
+      "id": 2,
+      "title": "Consecutive Failures",
+      "type": "stat",
+      "gridPos": { "x": 6, "y": 0, "w": 6, "h": 4 },
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": { "steps": [{ "color": "green", "value": 0 }, { "color": "yellow", "value": 2 }, { "color": "red", "value": 5 }] }
+        }
+      },
+      "targets": [{ "expr": "scheduler_consecutive_failures", "legendFormat": "Consecutive Failures" }]
+    },
+    {
+      "id": 3,
+      "title": "Execution Drift (seconds late)",
+      "type": "stat",
+      "gridPos": { "x": 12, "y": 0, "w": 6, "h": 4 },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "thresholds": { "steps": [{ "color": "green", "value": 0 }, { "color": "yellow", "value": 60 }, { "color": "red", "value": 300 }] }
+        }
+      },
+      "targets": [{ "expr": "scheduler_execution_drift_seconds", "legendFormat": "Drift" }]
+    },
+    {
+      "id": 4,
+      "title": "Scheduler Memory Usage Ratio",
+      "type": "stat",
+      "gridPos": { "x": 18, "y": 0, "w": 6, "h": 4 },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "thresholds": { "steps": [{ "color": "green", "value": 0 }, { "color": "yellow", "value": 0.7 }, { "color": "red", "value": 0.9 }] }
+        }
+      },
+      "targets": [{ "expr": "data_core_scheduler_memory_usage_ratio", "legendFormat": "Memory Ratio" }]
+    },
+    {
+      "id": 5,
+      "title": "Scheduler Heartbeat Age (history)",
+      "type": "timeseries",
+      "gridPos": { "x": 0, "y": 4, "w": 12, "h": 8 },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "thresholds": { "steps": [{ "color": "green", "value": 0 }, { "color": "yellow", "value": 600 }, { "color": "red", "value": 1800 }] }
+        }
+      },
+      "targets": [{ "expr": "scheduler_heartbeat_age_seconds", "legendFormat": "Age" }]
+    },
+    {
+      "id": 6,
+      "title": "Pipeline Stage Last Success (age)",
+      "type": "timeseries",
+      "gridPos": { "x": 12, "y": 4, "w": 12, "h": 8 },
+      "fieldConfig": { "defaults": { "unit": "s" } },
+      "targets": [
+        { "expr": "time() - pipeline_stage_last_success_timestamp_seconds", "legendFormat": "{{domain}} {{stage}}" }
+      ]
+    },
+    {
+      "id": 7,
+      "title": "Scheduler Protection Mode",
+      "type": "stat",
+      "gridPos": { "x": 0, "y": 12, "w": 8, "h": 4 },
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [{ "options": { "0": { "text": "NORMAL" }, "1": { "text": "CONSERVATIVE" }, "2": { "text": "PROTECTIVE" }, "3": { "text": "CRITICAL" } }, "type": "value" }]
+        }
+      },
+      "targets": [{ "expr": "data_core_scheduler_protection_mode", "legendFormat": "Mode" }]
+    },
+    {
+      "id": 8,
+      "title": "Throttled Jobs Total",
+      "type": "timeseries",
+      "gridPos": { "x": 8, "y": 12, "w": 16, "h": 4 },
+      "targets": [
+        { "expr": "increase(data_core_scheduler_throttled_jobs_total[5m])", "legendFormat": "{{job_name}} throttled" }
+      ]
+    }
+  ]
+}

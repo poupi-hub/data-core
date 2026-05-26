@@ -1,0 +1,517 @@
+{
+  "__inputs": [],
+  "__requires": [
+    { "type": "grafana", "id": "grafana", "name": "Grafana", "version": "10.0.0" },
+    { "type": "datasource", "id": "prometheus", "name": "Prometheus", "version": "1.0.0" }
+  ],
+  "annotations": { "list": [] },
+  "description": "Quant Executive Dashboard — estratégias, portfólio, replay, QA e observabilidade",
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [
+    {
+      "title": "Research Dashboard",
+      "url": "/d/crypto-research-v1",
+      "type": "link",
+      "icon": "external link",
+      "targetBlank": false
+    }
+  ],
+  "panels": [
+
+    {
+      "collapsed": false,
+      "id": 100,
+      "title": "🏆 Top Strategies",
+      "type": "row",
+      "gridPos": { "x": 0, "y": 0, "w": 24, "h": 1 }
+    },
+    {
+      "id": 101,
+      "title": "Strategy Composite Score",
+      "type": "bargauge",
+      "gridPos": { "x": 0, "y": 1, "w": 12, "h": 8 },
+      "datasource": "Prometheus",
+      "options": {
+        "orientation": "horizontal",
+        "reduceOptions": { "calcs": ["lastNotNull"] },
+        "displayMode": "gradient",
+        "minVizWidth": 0,
+        "minVizHeight": 10
+      },
+      "fieldConfig": {
+        "defaults": {
+          "min": 0, "max": 100,
+          "unit": "short",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red", "value": 0 },
+              { "color": "yellow", "value": 50 },
+              { "color": "green", "value": 75 }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "expr": "strategy_composite_score",
+          "legendFormat": "{{strategy_id}}",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "id": 102,
+      "title": "Strategy Consistency Score",
+      "type": "bargauge",
+      "gridPos": { "x": 12, "y": 1, "w": 12, "h": 8 },
+      "datasource": "Prometheus",
+      "options": {
+        "orientation": "horizontal",
+        "reduceOptions": { "calcs": ["lastNotNull"] },
+        "displayMode": "gradient"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "min": 0, "max": 100,
+          "unit": "short",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red", "value": 0 },
+              { "color": "yellow", "value": 50 },
+              { "color": "green", "value": 75 }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "expr": "strategy_consistency_score",
+          "legendFormat": "{{strategy_id}}",
+          "refId": "A"
+        }
+      ]
+    },
+
+    {
+      "collapsed": false,
+      "id": 110,
+      "title": "📉 Degradation & Alerts",
+      "type": "row",
+      "gridPos": { "x": 0, "y": 9, "w": 24, "h": 1 }
+    },
+    {
+      "id": 111,
+      "title": "Degradation Events (last 7d)",
+      "type": "stat",
+      "gridPos": { "x": 0, "y": 10, "w": 6, "h": 4 },
+      "datasource": "Prometheus",
+      "options": {
+        "reduceOptions": { "calcs": ["sum"] },
+        "colorMode": "background",
+        "graphMode": "none"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": 0 },
+              { "color": "yellow", "value": 1 },
+              { "color": "red", "value": 3 }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "expr": "increase(strategy_degradation_total[7d])",
+          "legendFormat": "{{strategy_id}} ({{severity}})",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "id": 112,
+      "title": "Orchestration Runs",
+      "type": "stat",
+      "gridPos": { "x": 6, "y": 10, "w": 6, "h": 4 },
+      "datasource": "Prometheus",
+      "options": {
+        "reduceOptions": { "calcs": ["sum"] },
+        "colorMode": "value",
+        "graphMode": "area"
+      },
+      "fieldConfig": {
+        "defaults": { "unit": "short" },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "expr": "increase(orchestration_runs_total[7d])",
+          "legendFormat": "Success={{success}}",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "id": 113,
+      "title": "Strategy Degradation by Severity",
+      "type": "timeseries",
+      "gridPos": { "x": 12, "y": 10, "w": 12, "h": 4 },
+      "datasource": "Prometheus",
+      "options": { "tooltip": { "mode": "multi" } },
+      "fieldConfig": {
+        "defaults": { "unit": "short" },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "expr": "rate(strategy_degradation_total[1h]) * 3600",
+          "legendFormat": "{{strategy_id}} — {{severity}}",
+          "refId": "A"
+        }
+      ]
+    },
+
+    {
+      "collapsed": false,
+      "id": 120,
+      "title": "📊 Portfolio Metrics",
+      "type": "row",
+      "gridPos": { "x": 0, "y": 14, "w": 24, "h": 1 }
+    },
+    {
+      "id": 121,
+      "title": "Portfolio Average Correlation",
+      "type": "gauge",
+      "gridPos": { "x": 0, "y": 15, "w": 6, "h": 6 },
+      "datasource": "Prometheus",
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"] },
+        "minVizWidth": 75
+      },
+      "fieldConfig": {
+        "defaults": {
+          "min": -1, "max": 1,
+          "unit": "short",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": -1 },
+              { "color": "yellow", "value": 0.3 },
+              { "color": "red", "value": 0.7 }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "expr": "portfolio_correlation_avg",
+          "legendFormat": "Avg Correlation",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "id": 122,
+      "title": "Portfolio Simulations Total",
+      "type": "stat",
+      "gridPos": { "x": 6, "y": 15, "w": 6, "h": 3 },
+      "datasource": "Prometheus",
+      "options": {
+        "reduceOptions": { "calcs": ["sum"] },
+        "colorMode": "value",
+        "graphMode": "area"
+      },
+      "fieldConfig": {
+        "defaults": { "unit": "short" },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "expr": "sum(portfolio_simulations_total)",
+          "legendFormat": "Total Simulations",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "id": 123,
+      "title": "Portfolio Rebalances",
+      "type": "stat",
+      "gridPos": { "x": 6, "y": 18, "w": 6, "h": 3 },
+      "datasource": "Prometheus",
+      "options": {
+        "reduceOptions": { "calcs": ["sum"] },
+        "colorMode": "value",
+        "graphMode": "none"
+      },
+      "fieldConfig": {
+        "defaults": { "unit": "short" },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "expr": "sum(portfolio_rebalance_total)",
+          "legendFormat": "Total Rebalances",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "id": 124,
+      "title": "Portfolio Rebalance by Type",
+      "type": "piechart",
+      "gridPos": { "x": 12, "y": 15, "w": 12, "h": 6 },
+      "datasource": "Prometheus",
+      "options": { "displayLabels": ["name", "percent"] },
+      "fieldConfig": {
+        "defaults": { "unit": "short" },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "expr": "sum by(rebalance_type)(portfolio_rebalance_total)",
+          "legendFormat": "{{rebalance_type}}",
+          "refId": "A"
+        }
+      ]
+    },
+
+    {
+      "collapsed": false,
+      "id": 130,
+      "title": "🎯 Scenario Stress",
+      "type": "row",
+      "gridPos": { "x": 0, "y": 21, "w": 24, "h": 1 }
+    },
+    {
+      "id": 131,
+      "title": "Scenario Stress Score (atual)",
+      "type": "bargauge",
+      "gridPos": { "x": 0, "y": 22, "w": 12, "h": 8 },
+      "datasource": "Prometheus",
+      "options": {
+        "orientation": "horizontal",
+        "reduceOptions": { "calcs": ["lastNotNull"] },
+        "displayMode": "gradient"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "min": 0, "max": 100,
+          "unit": "short",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": 0 },
+              { "color": "yellow", "value": 40 },
+              { "color": "red", "value": 70 }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "expr": "scenario_stress_score",
+          "legendFormat": "{{scenario}} / {{strategy_id}}",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "id": 132,
+      "title": "Replay Stress Runs (last 7d)",
+      "type": "timeseries",
+      "gridPos": { "x": 12, "y": 22, "w": 12, "h": 8 },
+      "datasource": "Prometheus",
+      "options": { "tooltip": { "mode": "multi" } },
+      "fieldConfig": {
+        "defaults": { "unit": "short" },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "expr": "rate(replay_stress_total[1h]) * 3600",
+          "legendFormat": "{{scenario}} / {{strategy_id}}",
+          "refId": "A"
+        }
+      ]
+    },
+
+    {
+      "collapsed": false,
+      "id": 140,
+      "title": "🗃️ Dataset Quality & Drift",
+      "type": "row",
+      "gridPos": { "x": 0, "y": 30, "w": 24, "h": 1 }
+    },
+    {
+      "id": 141,
+      "title": "OHLCV Fleet Score",
+      "type": "gauge",
+      "gridPos": { "x": 0, "y": 31, "w": 6, "h": 6 },
+      "datasource": "Prometheus",
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"] },
+        "minVizWidth": 75
+      },
+      "fieldConfig": {
+        "defaults": {
+          "min": 0, "max": 100,
+          "unit": "short",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red", "value": 0 },
+              { "color": "yellow", "value": 60 },
+              { "color": "green", "value": 80 }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "expr": "dataset_qa_fleet_score",
+          "legendFormat": "Fleet Score",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "id": 142,
+      "title": "Pairs in CRITICAL State",
+      "type": "stat",
+      "gridPos": { "x": 6, "y": 31, "w": 6, "h": 3 },
+      "datasource": "Prometheus",
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"] },
+        "colorMode": "background"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": 0 },
+              { "color": "red", "value": 1 }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "expr": "dataset_qa_critical_count",
+          "legendFormat": "Critical Pairs",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "id": 143,
+      "title": "Dataset Drift Score",
+      "type": "bargauge",
+      "gridPos": { "x": 12, "y": 31, "w": 12, "h": 6 },
+      "datasource": "Prometheus",
+      "options": {
+        "orientation": "horizontal",
+        "reduceOptions": { "calcs": ["lastNotNull"] },
+        "displayMode": "gradient"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "min": 0, "max": 1,
+          "unit": "percentunit",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": 0 },
+              { "color": "yellow", "value": 0.3 },
+              { "color": "red", "value": 0.6 }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "expr": "dataset_drift_score",
+          "legendFormat": "{{symbol}} / {{timeframe}}",
+          "refId": "A"
+        }
+      ]
+    },
+
+    {
+      "collapsed": false,
+      "id": 150,
+      "title": "🔬 Experiment Lineage",
+      "type": "row",
+      "gridPos": { "x": 0, "y": 37, "w": 24, "h": 1 }
+    },
+    {
+      "id": 151,
+      "title": "Experiment Records (last 24h)",
+      "type": "stat",
+      "gridPos": { "x": 0, "y": 38, "w": 6, "h": 4 },
+      "datasource": "Prometheus",
+      "options": {
+        "reduceOptions": { "calcs": ["sum"] },
+        "colorMode": "value",
+        "graphMode": "area"
+      },
+      "fieldConfig": {
+        "defaults": { "unit": "short" },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "expr": "increase(experiment_records_total[24h])",
+          "legendFormat": "{{strategy_id}}",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "id": 152,
+      "title": "Sweep Runs Rate",
+      "type": "timeseries",
+      "gridPos": { "x": 6, "y": 38, "w": 18, "h": 4 },
+      "datasource": "Prometheus",
+      "options": { "tooltip": { "mode": "multi" } },
+      "fieldConfig": {
+        "defaults": { "unit": "short" },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "expr": "rate(sweep_runs_total[1h]) * 3600",
+          "legendFormat": "{{strategy_id}} / {{symbol}} / {{timeframe}}",
+          "refId": "A"
+        }
+      ]
+    }
+
+  ],
+  "refresh": "1m",
+  "schemaVersion": 38,
+  "tags": ["crypto", "research", "executive", "quant"],
+  "time": { "from": "now-7d", "to": "now" },
+  "timepicker": {},
+  "title": "Crypto Quant Executive",
+  "uid": "crypto-quant-exec-v1",
+  "version": 1
+}

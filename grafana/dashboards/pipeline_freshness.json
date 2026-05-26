@@ -1,0 +1,93 @@
+{
+  "title": "Pipeline Freshness",
+  "uid": "pipeline-freshness",
+  "schemaVersion": 38,
+  "version": 1,
+  "refresh": "30s",
+  "tags": ["pipeline", "freshness", "ecommerce"],
+  "panels": [
+    {
+      "id": 1,
+      "title": "Last Successful Normalization (age)",
+      "type": "stat",
+      "gridPos": { "x": 0, "y": 0, "w": 8, "h": 4 },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "thresholds": { "steps": [{ "color": "green", "value": 0 }, { "color": "yellow", "value": 1800 }, { "color": "red", "value": 7200 }] }
+        }
+      },
+      "targets": [
+        { "expr": "time() - last_normalization_success_timestamp{module='ecommerce'}", "legendFormat": "ecommerce" }
+      ]
+    },
+    {
+      "id": 2,
+      "title": "Last Successful Analytics (age)",
+      "type": "stat",
+      "gridPos": { "x": 8, "y": 0, "w": 8, "h": 4 },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "thresholds": { "steps": [{ "color": "green", "value": 0 }, { "color": "yellow", "value": 7200 }, { "color": "red", "value": 14400 }] }
+        }
+      },
+      "targets": [
+        { "expr": "time() - analytics_last_success_timestamp{module='ecommerce'}", "legendFormat": "ecommerce" }
+      ]
+    },
+    {
+      "id": 3,
+      "title": "Last Normalized Offer (age)",
+      "type": "stat",
+      "gridPos": { "x": 16, "y": 0, "w": 8, "h": 4 },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "thresholds": { "steps": [{ "color": "green", "value": 0 }, { "color": "yellow", "value": 3600 }, { "color": "red", "value": 14400 }] }
+        }
+      },
+      "targets": [{ "expr": "last_normalized_offer_age_seconds", "legendFormat": "Latest Offer Age" }]
+    },
+    {
+      "id": 4,
+      "title": "Normalization Lag by Module",
+      "type": "timeseries",
+      "gridPos": { "x": 0, "y": 4, "w": 12, "h": 8 },
+      "fieldConfig": { "defaults": { "unit": "s" } },
+      "targets": [
+        { "expr": "normalization_lag_seconds", "legendFormat": "{{module}} lag" }
+      ]
+    },
+    {
+      "id": 5,
+      "title": "Analytics Lag by Module",
+      "type": "timeseries",
+      "gridPos": { "x": 12, "y": 4, "w": 12, "h": 8 },
+      "fieldConfig": { "defaults": { "unit": "s" } },
+      "targets": [
+        { "expr": "analytics_lag_seconds", "legendFormat": "{{module}} analytics lag" }
+      ]
+    },
+    {
+      "id": 6,
+      "title": "Pipeline Stage Run Rate",
+      "type": "timeseries",
+      "gridPos": { "x": 0, "y": 12, "w": 12, "h": 8 },
+      "targets": [
+        { "expr": "rate(pipeline_stage_runs_total{status='success'}[10m])", "legendFormat": "{{domain}} {{stage}} ok/s" },
+        { "expr": "rate(pipeline_stage_runs_total{status='error'}[10m])", "legendFormat": "{{domain}} {{stage}} err/s" }
+      ]
+    },
+    {
+      "id": 7,
+      "title": "Raw Collection Freshness (last raw age)",
+      "type": "timeseries",
+      "gridPos": { "x": 12, "y": 12, "w": 12, "h": 8 },
+      "fieldConfig": { "defaults": { "unit": "s" } },
+      "targets": [
+        { "expr": "last_raw_collection_age_seconds", "legendFormat": "Latest Raw Age" }
+      ]
+    }
+  ]
+}

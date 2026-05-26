@@ -1,0 +1,73 @@
+{
+  "title": "Runtime Drift",
+  "uid": "runtime-drift",
+  "schemaVersion": 38,
+  "version": 1,
+  "refresh": "1m",
+  "tags": ["env", "drift", "scheduler"],
+  "panels": [
+    {
+      "id": 1,
+      "title": "Scheduler Execution Drift",
+      "type": "timeseries",
+      "gridPos": { "x": 0, "y": 0, "w": 12, "h": 8 },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "thresholds": { "steps": [{ "color": "green", "value": 0 }, { "color": "yellow", "value": 60 }, { "color": "red", "value": 300 }] }
+        }
+      },
+      "targets": [{ "expr": "scheduler_execution_drift_seconds", "legendFormat": "Drift (s)" }]
+    },
+    {
+      "id": 2,
+      "title": "Scheduler Heartbeat Age",
+      "type": "timeseries",
+      "gridPos": { "x": 12, "y": 0, "w": 12, "h": 8 },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "thresholds": { "steps": [{ "color": "green", "value": 0 }, { "color": "yellow", "value": 600 }, { "color": "red", "value": 1800 }] }
+        }
+      },
+      "targets": [{ "expr": "scheduler_heartbeat_age_seconds", "legendFormat": "Heartbeat Age" }]
+    },
+    {
+      "id": 3,
+      "title": "Scheduler Memory Growth Rate",
+      "type": "timeseries",
+      "gridPos": { "x": 0, "y": 8, "w": 12, "h": 8 },
+      "fieldConfig": { "defaults": { "unit": "Bps" } },
+      "targets": [{ "expr": "data_core_scheduler_growth_rate", "legendFormat": "Memory Growth (B/s)" }]
+    },
+    {
+      "id": 4,
+      "title": "Pipeline Stage Active (in-flight)",
+      "type": "timeseries",
+      "gridPos": { "x": 12, "y": 8, "w": 12, "h": 8 },
+      "targets": [
+        { "expr": "pipeline_stage_active > 0", "legendFormat": "{{domain}} {{stage}}" }
+      ]
+    },
+    {
+      "id": 5,
+      "title": "DB Pool Utilisation",
+      "type": "timeseries",
+      "gridPos": { "x": 0, "y": 16, "w": 12, "h": 6 },
+      "fieldConfig": { "defaults": { "unit": "short" } },
+      "targets": [
+        { "expr": "db_pool_checked_out", "legendFormat": "Checked Out" },
+        { "expr": "db_pool_size", "legendFormat": "Pool Size" }
+      ]
+    },
+    {
+      "id": 6,
+      "title": "Scraper Anti-Bot Detections",
+      "type": "timeseries",
+      "gridPos": { "x": 12, "y": 16, "w": 12, "h": 6 },
+      "targets": [
+        { "expr": "increase(scraper_anti_bot_detections_total[10m])", "legendFormat": "{{source_name}} {{detection_type}}" }
+      ]
+    }
+  ]
+}

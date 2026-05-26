@@ -1,0 +1,262 @@
+{
+  "annotations": {
+    "list": [
+      {
+        "datasource": { "type": "prometheus", "uid": "Prometheus" },
+        "enable": true,
+        "expr": "changes(data_core_scheduler_state[1h]) > 0",
+        "iconColor": "orange",
+        "name": "Scheduler state changes"
+      }
+    ]
+  },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 0,
+  "id": null,
+  "links": [
+    { "title": "Root Cause", "type": "link", "url": "docs/SCHEDULER_RESTART_LOOP_ROOT_CAUSE.md" },
+    { "title": "Memory Pressure Report", "type": "link", "url": "reports/runtime-memory-pressure.md" }
+  ],
+  "panels": [
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 0 },
+      "id": 1,
+      "panels": [],
+      "title": "Scheduler Reliability",
+      "type": "row"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "Prometheus" },
+      "fieldConfig": { "defaults": { "unit": "short" }, "overrides": [] },
+      "gridPos": { "h": 7, "w": 8, "x": 0, "y": 1 },
+      "id": 2,
+      "targets": [{ "expr": "data_core_scheduler_state", "legendFormat": "watchdog state" }],
+      "title": "Scheduler Watchdog State",
+      "type": "state-timeline"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "Prometheus" },
+      "fieldConfig": { "defaults": { "unit": "short" }, "overrides": [] },
+      "gridPos": { "h": 7, "w": 8, "x": 8, "y": 1 },
+      "id": 3,
+      "targets": [{ "expr": "data_core_scheduler_protection_mode", "legendFormat": "dry-run protection mode" }],
+      "title": "Dry-Run Protection Mode",
+      "type": "state-timeline"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "Prometheus" },
+      "fieldConfig": { "defaults": { "unit": "short", "min": 0, "max": 1 }, "overrides": [] },
+      "gridPos": { "h": 7, "w": 8, "x": 16, "y": 1 },
+      "id": 4,
+      "targets": [{ "expr": "watchdog_confidence_score", "legendFormat": "confidence" }],
+      "title": "Watchdog Confidence",
+      "type": "timeseries"
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 8 },
+      "id": 5,
+      "panels": [],
+      "title": "Restart Loop Forensics",
+      "type": "row"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "Prometheus" },
+      "fieldConfig": { "defaults": { "unit": "short", "min": 0 }, "overrides": [] },
+      "gridPos": { "h": 7, "w": 8, "x": 0, "y": 9 },
+      "id": 6,
+      "targets": [
+        { "expr": "scheduler_restart_real_total", "legendFormat": "real restarts" },
+        { "expr": "scheduler_false_restart_total", "legendFormat": "false/legacy restarts" }
+      ],
+      "title": "Restart Provenance Counts",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "Prometheus" },
+      "fieldConfig": { "defaults": { "unit": "short", "min": 0 }, "overrides": [] },
+      "gridPos": { "h": 7, "w": 8, "x": 8, "y": 9 },
+      "id": 7,
+      "targets": [{ "expr": "scheduler_restart_loop_total", "legendFormat": "restart loop active" }],
+      "title": "Restart Loop Active",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "Prometheus" },
+      "fieldConfig": { "defaults": { "unit": "s", "min": 0 }, "overrides": [] },
+      "gridPos": { "h": 7, "w": 8, "x": 16, "y": 9 },
+      "id": 8,
+      "targets": [{ "expr": "scheduler_heartbeat_age_seconds", "legendFormat": "heartbeat age" }],
+      "title": "Heartbeat Age",
+      "type": "timeseries"
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 16 },
+      "id": 9,
+      "panels": [],
+      "title": "Runtime Pressure",
+      "type": "row"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "Prometheus" },
+      "fieldConfig": { "defaults": { "unit": "short", "min": 0, "max": 1 }, "overrides": [] },
+      "gridPos": { "h": 7, "w": 12, "x": 0, "y": 17 },
+      "id": 10,
+      "targets": [{ "expr": "runtime_memory_pressure_score", "legendFormat": "memory pressure score" }],
+      "title": "Runtime Memory Pressure Score",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "Prometheus" },
+      "fieldConfig": { "defaults": { "unit": "bytes", "min": 0 }, "overrides": [] },
+      "gridPos": { "h": 7, "w": 12, "x": 12, "y": 17 },
+      "id": 11,
+      "targets": [{ "expr": "runtime_swap_growth_bytes", "legendFormat": "swap growth" }],
+      "title": "Swap Growth",
+      "type": "timeseries"
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 24 },
+      "id": 12,
+      "panels": [],
+      "title": "Memory Pressure Timeline",
+      "type": "row"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "Prometheus" },
+      "fieldConfig": { "defaults": { "unit": "bytes", "min": 0 }, "overrides": [] },
+      "gridPos": { "h": 7, "w": 8, "x": 0, "y": 25 },
+      "id": 13,
+      "targets": [
+        { "expr": "data_core_scheduler_memory_usage_bytes", "legendFormat": "scheduler rss" },
+        { "expr": "data_core_scheduler_memory_limit_bytes", "legendFormat": "scheduler limit" }
+      ],
+      "title": "Scheduler Memory",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "Prometheus" },
+      "fieldConfig": { "defaults": { "unit": "percentunit", "min": 0, "max": 1 }, "overrides": [] },
+      "gridPos": { "h": 7, "w": 8, "x": 8, "y": 25 },
+      "id": 14,
+      "targets": [
+        { "expr": "data_core_scheduler_memory_usage_ratio", "legendFormat": "memory ratio" },
+        { "expr": "data_core_scheduler_swap_usage_ratio", "legendFormat": "swap ratio" }
+      ],
+      "title": "Memory And Swap Ratios",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "Prometheus" },
+      "fieldConfig": { "defaults": { "unit": "Bps" }, "overrides": [] },
+      "gridPos": { "h": 7, "w": 8, "x": 16, "y": 25 },
+      "id": 15,
+      "targets": [{ "expr": "data_core_scheduler_growth_rate", "legendFormat": "memory growth" }],
+      "title": "Memory Growth Rate",
+      "type": "timeseries"
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 32 },
+      "id": 16,
+      "panels": [],
+      "title": "APScheduler Drift",
+      "type": "row"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "Prometheus" },
+      "fieldConfig": { "defaults": { "unit": "s", "min": 0 }, "overrides": [] },
+      "gridPos": { "h": 7, "w": 12, "x": 0, "y": 33 },
+      "id": 17,
+      "targets": [{ "expr": "scheduler_execution_drift_seconds", "legendFormat": "execution drift" }],
+      "title": "Execution Drift",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "Prometheus" },
+      "fieldConfig": { "defaults": { "unit": "s", "min": 0 }, "overrides": [] },
+      "gridPos": { "h": 7, "w": 12, "x": 12, "y": 33 },
+      "id": 18,
+      "targets": [{ "expr": "data_core_scheduler_cycle_duration_seconds", "legendFormat": "cycle duration" }],
+      "title": "Cycle Duration",
+      "type": "timeseries"
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 40 },
+      "id": 19,
+      "panels": [],
+      "title": "Watchdog Confidence",
+      "type": "row"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "Prometheus" },
+      "fieldConfig": { "defaults": { "unit": "short", "min": 0, "max": 1 }, "overrides": [] },
+      "gridPos": { "h": 7, "w": 24, "x": 0, "y": 41 },
+      "id": 20,
+      "targets": [
+        { "expr": "watchdog_confidence_score", "legendFormat": "confidence" },
+        { "expr": "0.8", "legendFormat": "enablement floor" }
+      ],
+      "title": "Confidence Against Enablement Floor",
+      "type": "timeseries"
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 48 },
+      "id": 21,
+      "panels": [],
+      "title": "Capacity Stability",
+      "type": "row"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "Prometheus" },
+      "fieldConfig": { "defaults": { "unit": "short", "min": 0, "max": 1 }, "overrides": [] },
+      "gridPos": { "h": 7, "w": 8, "x": 0, "y": 49 },
+      "id": 22,
+      "targets": [{ "expr": "data_core_scheduler_backlog_score", "legendFormat": "backlog score" }],
+      "title": "Queue Pressure",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "Prometheus" },
+      "fieldConfig": { "defaults": { "unit": "short", "min": 0 }, "overrides": [] },
+      "gridPos": { "h": 7, "w": 8, "x": 8, "y": 49 },
+      "id": 23,
+      "targets": [
+        { "expr": "data_core_scheduler_backlog_growth_rate", "legendFormat": "backlog growth" },
+        { "expr": "data_core_scheduler_throughput_estimate", "legendFormat": "throughput" }
+      ],
+      "title": "Backlog Growth Vs Throughput",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "Prometheus" },
+      "fieldConfig": { "defaults": { "unit": "short" }, "overrides": [] },
+      "gridPos": { "h": 7, "w": 8, "x": 16, "y": 49 },
+      "id": 24,
+      "options": {
+        "content": "Enablement remains blocked when restart provenance is legacy/probe-local, watchdog confidence is below 0.8, execution drift is above 300s, or memory pressure exceeds 0.75. These panels are informational and must not drive automatic restarts.",
+        "mode": "markdown"
+      },
+      "title": "Capacity Decision Notes",
+      "type": "text"
+    }
+  ],
+  "refresh": "30s",
+  "schemaVersion": 39,
+  "style": "dark",
+  "tags": ["data-core", "scheduler", "forensics", "capacity"],
+  "templating": { "list": [] },
+  "time": { "from": "now-6h", "to": "now" },
+  "timepicker": {},
+  "timezone": "",
+  "title": "Data Core Scheduler Forensics",
+  "uid": "data-core-scheduler-forensics",
+  "version": 1,
+  "weekStart": ""
+}

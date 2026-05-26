@@ -1,0 +1,87 @@
+{
+  "title": "Backlog Recovery",
+  "uid": "backlog-recovery",
+  "schemaVersion": 38,
+  "version": 1,
+  "refresh": "30s",
+  "tags": ["backlog", "recovery", "normalization"],
+  "panels": [
+    {
+      "id": 1,
+      "title": "Pending Normalization (all modules)",
+      "type": "stat",
+      "gridPos": { "x": 0, "y": 0, "w": 8, "h": 4 },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": { "steps": [{ "color": "green", "value": 0 }, { "color": "yellow", "value": 50 }, { "color": "red", "value": 200 }] }
+        }
+      },
+      "targets": [{ "expr": "sum(queue_backlog_total)", "legendFormat": "Total Pending" }]
+    },
+    {
+      "id": 2,
+      "title": "Self-Healing Triggers",
+      "type": "stat",
+      "gridPos": { "x": 8, "y": 0, "w": 8, "h": 4 },
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": { "steps": [{ "color": "green", "value": 0 }, { "color": "yellow", "value": 3 }, { "color": "red", "value": 10 }] }
+        }
+      },
+      "targets": [{ "expr": "sum(increase(self_healing_trigger_total[1h]))", "legendFormat": "Triggers/hour" }]
+    },
+    {
+      "id": 3,
+      "title": "Self-Healing Throttled",
+      "type": "stat",
+      "gridPos": { "x": 16, "y": 0, "w": 8, "h": 4 },
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": { "steps": [{ "color": "green", "value": 0 }, { "color": "yellow", "value": 1 }] }
+        }
+      },
+      "targets": [{ "expr": "sum(increase(self_healing_throttled_total[1h]))", "legendFormat": "Throttled/hour" }]
+    },
+    {
+      "id": 4,
+      "title": "Backlog Recovery Over Time",
+      "type": "timeseries",
+      "gridPos": { "x": 0, "y": 4, "w": 16, "h": 8 },
+      "fieldConfig": { "defaults": { "unit": "short" } },
+      "targets": [
+        { "expr": "queue_backlog_total", "legendFormat": "{{module}} pending" },
+        { "expr": "sum(rate(pipeline_items_processed_total{stage='normalization'}[5m])) * 60", "legendFormat": "normalized/min (all)" }
+      ]
+    },
+    {
+      "id": 5,
+      "title": "Dead Pipeline Signals",
+      "type": "timeseries",
+      "gridPos": { "x": 16, "y": 4, "w": 8, "h": 8 },
+      "targets": [
+        { "expr": "increase(dead_pipeline_signals_total[5m])", "legendFormat": "{{signal}} ({{severity}})" }
+      ]
+    },
+    {
+      "id": 6,
+      "title": "Normalization Items Processed (rate)",
+      "type": "timeseries",
+      "gridPos": { "x": 0, "y": 12, "w": 12, "h": 8 },
+      "fieldConfig": { "defaults": { "unit": "short" } },
+      "targets": [
+        { "expr": "rate(pipeline_items_processed_total{stage='normalization'}[10m])", "legendFormat": "{{domain}} proc/s" }
+      ]
+    },
+    {
+      "id": 7,
+      "title": "Normalization Errors (rate)",
+      "type": "timeseries",
+      "gridPos": { "x": 12, "y": 12, "w": 12, "h": 8 },
+      "fieldConfig": { "defaults": { "unit": "short" } },
+      "targets": [
+        { "expr": "rate(pipeline_items_error_total{stage='normalization'}[10m])", "legendFormat": "{{domain}} errors/s" }
+      ]
+    }
+  ]
+}

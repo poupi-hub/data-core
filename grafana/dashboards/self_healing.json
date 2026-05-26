@@ -1,0 +1,88 @@
+{
+  "title": "Self-Healing Activity",
+  "uid": "self-healing",
+  "schemaVersion": 38,
+  "version": 1,
+  "refresh": "1m",
+  "tags": ["self-healing", "recovery", "reliability"],
+  "panels": [
+    {
+      "id": 1,
+      "title": "Self-Healing Actions (last 1h)",
+      "type": "stat",
+      "gridPos": { "x": 0, "y": 0, "w": 8, "h": 4 },
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": { "steps": [{ "color": "green", "value": 0 }, { "color": "yellow", "value": 3 }, { "color": "red", "value": 9 }] }
+        }
+      },
+      "targets": [{ "expr": "sum(increase(self_healing_trigger_total[1h]))", "legendFormat": "Actions" }]
+    },
+    {
+      "id": 2,
+      "title": "Throttled Recoveries (last 1h)",
+      "type": "stat",
+      "gridPos": { "x": 8, "y": 0, "w": 8, "h": 4 },
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": { "steps": [{ "color": "green", "value": 0 }, { "color": "yellow", "value": 1 }, { "color": "red", "value": 5 }] }
+        }
+      },
+      "targets": [{ "expr": "sum(increase(self_healing_throttled_total[1h]))", "legendFormat": "Throttled" }]
+    },
+    {
+      "id": 3,
+      "title": "Dead Pipeline Signals (last 1h)",
+      "type": "stat",
+      "gridPos": { "x": 16, "y": 0, "w": 8, "h": 4 },
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": { "steps": [{ "color": "green", "value": 0 }, { "color": "yellow", "value": 1 }, { "color": "red", "value": 3 }] }
+        }
+      },
+      "targets": [{ "expr": "sum(increase(dead_pipeline_signals_total[1h]))", "legendFormat": "Signals" }]
+    },
+    {
+      "id": 4,
+      "title": "Self-Healing Trigger Rate by Pipeline",
+      "type": "timeseries",
+      "gridPos": { "x": 0, "y": 4, "w": 12, "h": 8 },
+      "targets": [
+        { "expr": "increase(self_healing_trigger_total[5m])", "legendFormat": "{{pipeline_id}} / {{action}}" }
+      ]
+    },
+    {
+      "id": 5,
+      "title": "Dead Pipeline Signal History",
+      "type": "timeseries",
+      "gridPos": { "x": 12, "y": 4, "w": 12, "h": 8 },
+      "targets": [
+        { "expr": "increase(dead_pipeline_signals_total[5m])", "legendFormat": "{{signal}} ({{severity}})" }
+      ]
+    },
+    {
+      "id": 6,
+      "title": "Scheduler Consecutive Failures",
+      "type": "timeseries",
+      "gridPos": { "x": 0, "y": 12, "w": 12, "h": 6 },
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": { "steps": [{ "color": "green", "value": 0 }, { "color": "yellow", "value": 2 }, { "color": "red", "value": 5 }] }
+        }
+      },
+      "targets": [{ "expr": "scheduler_consecutive_failures", "legendFormat": "Consecutive Failures" }]
+    },
+    {
+      "id": 7,
+      "title": "Circuit Breaker Open Sources",
+      "type": "timeseries",
+      "gridPos": { "x": 12, "y": 12, "w": 12, "h": 6 },
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": { "steps": [{ "color": "green", "value": 0 }, { "color": "yellow", "value": 1 }, { "color": "red", "value": 3 }] }
+        }
+      },
+      "targets": [{ "expr": "circuit_breaker_open_sources", "legendFormat": "Open Circuits" }]
+    }
+  ]
+}

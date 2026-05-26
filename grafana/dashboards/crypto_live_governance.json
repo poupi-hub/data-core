@@ -1,0 +1,333 @@
+{
+  "__inputs": [],
+  "__requires": [
+    {"type": "grafana", "id": "grafana", "name": "Grafana", "version": "10.0.0"},
+    {"type": "datasource", "id": "prometheus", "name": "Prometheus", "version": "1.0.0"},
+    {"type": "panel", "id": "timeseries", "name": "Time series", "version": ""},
+    {"type": "panel", "id": "stat", "name": "Stat", "version": ""},
+    {"type": "panel", "id": "gauge", "name": "Gauge", "version": ""},
+    {"type": "panel", "id": "table", "name": "Table", "version": ""}
+  ],
+  "annotations": {"list": []},
+  "description": "Phase Q — Micro-Live Execution & Capital-Protected Autonomy",
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [],
+  "panels": [
+
+    {"type": "row", "title": "Live Governance", "collapsed": false, "gridPos": {"h":1,"w":24,"x":0,"y":0}, "id":1},
+
+    {
+      "id": 2, "type": "stat", "title": "Live Governance Score",
+      "gridPos": {"h":4,"w":4,"x":0,"y":1},
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {"mode":"absolute","steps":[
+            {"color":"red","value":0},{"color":"orange","value":40},
+            {"color":"yellow","value":55},{"color":"green","value":75}
+          ]},
+          "min":0,"max":100,"unit":"short"
+        }
+      },
+      "options": {"reduceOptions":{"calcs":["lastNotNull"]},"orientation":"auto","textMode":"auto","colorMode":"background"},
+      "targets": [{"expr":"live_governance_score","legendFormat":"live_governance_score","refId":"A"}]
+    },
+    {
+      "id": 3, "type": "stat", "title": "Autonomous Live Approval",
+      "gridPos": {"h":4,"w":4,"x":4,"y":1},
+      "fieldConfig": {"defaults":{"mappings":[{"type":"value","options":{"0":{"text":"BLOQUEADO","color":"red"},"1":{"text":"APROVADO","color":"green"}}}],"thresholds":{"mode":"absolute","steps":[]}}},
+      "options": {"reduceOptions":{"calcs":["lastNotNull"]},"colorMode":"background","textMode":"auto","orientation":"auto"},
+      "targets": [{"expr":"autonomous_freeze_state == 0","legendFormat":"approval","refId":"A"}]
+    },
+    {
+      "id": 4, "type": "gauge", "title": "Execution Quality Score",
+      "gridPos": {"h":4,"w":4,"x":8,"y":1},
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {"mode":"absolute","steps":[
+            {"color":"red","value":0},{"color":"orange","value":50},
+            {"color":"yellow","value":65},{"color":"green","value":75}
+          ]},
+          "min":0,"max":100,"unit":"short"
+        }
+      },
+      "options": {"reduceOptions":{"calcs":["lastNotNull"]},"showThresholdLabels":false},
+      "targets": [{"expr":"execution_quality_score","legendFormat":"exec_quality","refId":"A"}]
+    },
+    {
+      "id": 5, "type": "gauge", "title": "Live Readiness Score",
+      "gridPos": {"h":4,"w":4,"x":12,"y":1},
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {"mode":"absolute","steps":[
+            {"color":"red","value":0},{"color":"orange","value":40},
+            {"color":"yellow","value":55},{"color":"green","value":75}
+          ]},
+          "min":0,"max":100,"unit":"short"
+        }
+      },
+      "options": {"reduceOptions":{"calcs":["lastNotNull"]},"showThresholdLabels":false},
+      "targets": [{"expr":"continuous_live_readiness_score","legendFormat":"readiness","refId":"A"}]
+    },
+    {
+      "id": 6, "type": "stat", "title": "Guardian Emergency Level",
+      "gridPos": {"h":4,"w":4,"x":16,"y":1},
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {"mode":"absolute","steps":[
+            {"color":"green","value":0},{"color":"yellow","value":1},
+            {"color":"orange","value":2},{"color":"red","value":3}
+          ]},
+          "min":0,"max":5,"unit":"short"
+        }
+      },
+      "options": {"reduceOptions":{"calcs":["lastNotNull"]},"colorMode":"background","orientation":"auto","textMode":"auto"},
+      "targets": [{"expr":"guardian_emergency_level","legendFormat":"emergency_level","refId":"A"}]
+    },
+    {
+      "id": 7, "type": "stat", "title": "Contraction Multiplier",
+      "gridPos": {"h":4,"w":4,"x":20,"y":1},
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {"mode":"absolute","steps":[
+            {"color":"red","value":0},{"color":"orange","value":0.35},
+            {"color":"yellow","value":0.60},{"color":"green","value":1.0}
+          ]},
+          "min":0,"max":1,"unit":"percentunit"
+        }
+      },
+      "options": {"reduceOptions":{"calcs":["lastNotNull"]},"colorMode":"background","orientation":"auto","textMode":"auto"},
+      "targets": [{"expr":"contraction_multiplier","legendFormat":"contraction","refId":"A"}]
+    },
+
+    {"type": "row", "title": "Capital Protection", "collapsed": false, "gridPos": {"h":1,"w":24,"x":0,"y":5}, "id":10},
+
+    {
+      "id": 11, "type": "timeseries", "title": "Live Capital Exposure %",
+      "gridPos": {"h":6,"w":12,"x":0,"y":6},
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {"mode":"absolute","steps":[
+            {"color":"green","value":0},{"color":"yellow","value":0.008},{"color":"red","value":0.010}
+          ]},
+          "min":0,"unit":"percentunit",
+          "custom": {"thresholdsStyle":{"mode":"line+area"}}
+        }
+      },
+      "options": {"tooltip":{"mode":"multi"}},
+      "targets": [{"expr":"live_capital_exposure_pct","legendFormat":"exposure_pct","refId":"A"}]
+    },
+    {
+      "id": 12, "type": "timeseries", "title": "Daily Drawdown %",
+      "gridPos": {"h":6,"w":12,"x":12,"y":6},
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {"mode":"absolute","steps":[
+            {"color":"green","value":0},{"color":"yellow","value":0.015},{"color":"red","value":0.020}
+          ]},
+          "min":0,"unit":"percentunit",
+          "custom": {"thresholdsStyle":{"mode":"line+area"}}
+        }
+      },
+      "options": {"tooltip":{"mode":"multi"}},
+      "targets": [{"expr":"live_drawdown_pct","legendFormat":"daily_drawdown","refId":"A"}]
+    },
+
+    {"type": "row", "title": "Execution Quality", "collapsed": false, "gridPos": {"h":1,"w":24,"x":0,"y":12}, "id":20},
+
+    {
+      "id": 21, "type": "timeseries", "title": "Execution Quality Score",
+      "gridPos": {"h":6,"w":12,"x":0,"y":13},
+      "fieldConfig": {
+        "defaults": {"min":0,"max":100,"unit":"short",
+          "thresholds":{"mode":"absolute","steps":[{"color":"red","value":0},{"color":"yellow","value":65},{"color":"green","value":75}]},
+          "custom":{"thresholdsStyle":{"mode":"dashed"}}
+        }
+      },
+      "options": {"tooltip":{"mode":"multi"}},
+      "targets": [{"expr":"execution_quality_score","legendFormat":"exec_quality","refId":"A"}]
+    },
+    {
+      "id": 22, "type": "timeseries", "title": "Execution Latency & Freeze State",
+      "gridPos": {"h":6,"w":12,"x":12,"y":13},
+      "fieldConfig": {"defaults":{"unit":"short"}},
+      "options": {"tooltip":{"mode":"multi"}},
+      "targets": [
+        {"expr":"execution_latency_ms","legendFormat":"latency_ms","refId":"A"},
+        {"expr":"autonomous_freeze_state * 1500","legendFormat":"freeze_state (×1500)","refId":"B"}
+      ]
+    },
+
+    {"type": "row", "title": "Slippage Analysis", "collapsed": false, "gridPos": {"h":1,"w":24,"x":0,"y":19}, "id":30},
+
+    {
+      "id": 31, "type": "timeseries", "title": "Live Slippage (bps)",
+      "gridPos": {"h":6,"w":12,"x":0,"y":20},
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {"mode":"absolute","steps":[{"color":"green","value":0},{"color":"yellow","value":8},{"color":"red","value":20}]},
+          "unit":"short",
+          "custom":{"thresholdsStyle":{"mode":"dashed"}}
+        }
+      },
+      "options": {"tooltip":{"mode":"multi"}},
+      "targets": [{"expr":"live_slippage_bps","legendFormat":"slippage_bps","refId":"A"}]
+    },
+    {
+      "id": 32, "type": "timeseries", "title": "Exchange Instability Score",
+      "gridPos": {"h":6,"w":12,"x":12,"y":20},
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {"mode":"absolute","steps":[{"color":"green","value":0},{"color":"yellow","value":30},{"color":"red","value":50}]},
+          "min":0,"max":100,"unit":"short",
+          "custom":{"thresholdsStyle":{"mode":"dashed"}}
+        }
+      },
+      "options": {"tooltip":{"mode":"multi"}},
+      "targets": [{"expr":"exchange_instability_score","legendFormat":"exchange_instability","refId":"A"}]
+    },
+
+    {"type": "row", "title": "Paper vs Live Divergence", "collapsed": false, "gridPos": {"h":1,"w":24,"x":0,"y":26}, "id":40},
+
+    {
+      "id": 41, "type": "timeseries", "title": "Divergence Score & Consistency",
+      "gridPos": {"h":6,"w":12,"x":0,"y":27},
+      "fieldConfig": {
+        "defaults": {
+          "min":0,"max":100,"unit":"short",
+          "thresholds":{"mode":"absolute","steps":[{"color":"green","value":0},{"color":"yellow","value":30},{"color":"red","value":60}]},
+          "custom":{"thresholdsStyle":{"mode":"dashed"}}
+        }
+      },
+      "options": {"tooltip":{"mode":"multi"}},
+      "targets": [
+        {"expr":"divergence_score","legendFormat":"divergence_score","refId":"A"},
+        {"expr":"live_consistency_score","legendFormat":"live_consistency","refId":"B"}
+      ]
+    },
+    {
+      "id": 42, "type": "stat", "title": "Total Rollback Events",
+      "gridPos": {"h":6,"w":12,"x":12,"y":27},
+      "fieldConfig": {
+        "defaults": {
+          "thresholds":{"mode":"absolute","steps":[{"color":"green","value":0},{"color":"yellow","value":1},{"color":"red","value":3}]},
+          "unit":"short"
+        }
+      },
+      "options": {"reduceOptions":{"calcs":["sum"]},"colorMode":"background","orientation":"auto","textMode":"auto"},
+      "targets": [{"expr":"sum(rollback_events_total)","legendFormat":"rollbacks_total","refId":"A"}]
+    },
+
+    {"type": "row", "title": "Guardian State", "collapsed": false, "gridPos": {"h":1,"w":24,"x":0,"y":33}, "id":50},
+
+    {
+      "id": 51, "type": "timeseries", "title": "Guardian Emergency Level (timeline)",
+      "gridPos": {"h":6,"w":12,"x":0,"y":34},
+      "fieldConfig": {
+        "defaults": {
+          "min":0,"max":5,"unit":"short",
+          "thresholds":{"mode":"absolute","steps":[{"color":"green","value":0},{"color":"yellow","value":1},{"color":"orange","value":2},{"color":"red","value":3}]},
+          "custom":{"fillOpacity":15,"thresholdsStyle":{"mode":"area"}}
+        }
+      },
+      "options": {"tooltip":{"mode":"multi"}},
+      "targets": [{"expr":"guardian_emergency_level","legendFormat":"emergency_level","refId":"A"}]
+    },
+    {
+      "id": 52, "type": "timeseries", "title": "Contraction Multiplier (timeline)",
+      "gridPos": {"h":6,"w":12,"x":12,"y":34},
+      "fieldConfig": {
+        "defaults": {
+          "min":0,"max":1,"unit":"percentunit",
+          "thresholds":{"mode":"absolute","steps":[{"color":"red","value":0},{"color":"orange","value":0.35},{"color":"yellow","value":0.60},{"color":"green","value":1.0}]},
+          "custom":{"thresholdsStyle":{"mode":"dashed"}}
+        }
+      },
+      "options": {"tooltip":{"mode":"multi"}},
+      "targets": [{"expr":"contraction_multiplier","legendFormat":"contraction_multiplier","refId":"A"}]
+    },
+
+    {"type": "row", "title": "Rollback Events", "collapsed": false, "gridPos": {"h":1,"w":24,"x":0,"y":40}, "id":60},
+
+    {
+      "id": 61, "type": "timeseries", "title": "Rollback Events by Trigger",
+      "gridPos": {"h":6,"w":24,"x":0,"y":41},
+      "fieldConfig": {"defaults":{"unit":"short"}},
+      "options": {"tooltip":{"mode":"multi"}},
+      "targets": [
+        {"expr":"rate(rollback_events_total[5m]) * 300","legendFormat":"{{trigger}}","refId":"A"}
+      ]
+    },
+
+    {"type": "row", "title": "Exchange Health", "collapsed": false, "gridPos": {"h":1,"w":24,"x":0,"y":47}, "id":70},
+
+    {
+      "id": 71, "type": "timeseries", "title": "Exchange Health (Instability + Latency)",
+      "gridPos": {"h":6,"w":24,"x":0,"y":48},
+      "fieldConfig": {"defaults":{"unit":"short"}},
+      "options": {"tooltip":{"mode":"multi"}},
+      "targets": [
+        {"expr":"exchange_instability_score","legendFormat":"exchange_instability","refId":"A"},
+        {"expr":"execution_latency_ms / 10","legendFormat":"latency_ms / 10","refId":"B"},
+        {"expr":"live_slippage_bps","legendFormat":"slippage_bps","refId":"C"}
+      ]
+    },
+
+    {"type": "row", "title": "Readiness Revalidation", "collapsed": false, "gridPos": {"h":1,"w":24,"x":0,"y":54}, "id":80},
+
+    {
+      "id": 81, "type": "timeseries", "title": "Live Readiness Score (continuous)",
+      "gridPos": {"h":6,"w":12,"x":0,"y":55},
+      "fieldConfig": {
+        "defaults": {
+          "min":0,"max":100,"unit":"short",
+          "thresholds":{"mode":"absolute","steps":[{"color":"red","value":0},{"color":"orange","value":40},{"color":"yellow","value":55},{"color":"green","value":75}]},
+          "custom":{"thresholdsStyle":{"mode":"area"},"fillOpacity":10}
+        }
+      },
+      "options": {"tooltip":{"mode":"multi"}},
+      "targets": [{"expr":"continuous_live_readiness_score","legendFormat":"continuous_live_readiness_score","refId":"A"}]
+    },
+    {
+      "id": 82, "type": "timeseries", "title": "Freeze State (1=frozen)",
+      "gridPos": {"h":6,"w":12,"x":12,"y":55},
+      "fieldConfig": {
+        "defaults": {
+          "min":0,"max":1,"unit":"short",
+          "thresholds":{"mode":"absolute","steps":[{"color":"green","value":0},{"color":"red","value":1}]},
+          "custom":{"fillOpacity":40}
+        }
+      },
+      "options": {"tooltip":{"mode":"multi"}},
+      "targets": [{"expr":"autonomous_freeze_state","legendFormat":"freeze_state","refId":"A"}]
+    },
+
+    {"type": "row", "title": "Live Stability", "collapsed": false, "gridPos": {"h":1,"w":24,"x":0,"y":61}, "id":90},
+
+    {
+      "id": 91, "type": "timeseries", "title": "All Governance Scores",
+      "gridPos": {"h":7,"w":24,"x":0,"y":62},
+      "fieldConfig": {"defaults":{"min":0,"max":100,"unit":"short"}},
+      "options": {"tooltip":{"mode":"multi"}},
+      "targets": [
+        {"expr":"live_governance_score","legendFormat":"live_governance_score","refId":"A"},
+        {"expr":"execution_quality_score","legendFormat":"execution_quality_score","refId":"B"},
+        {"expr":"continuous_live_readiness_score","legendFormat":"continuous_live_readiness_score","refId":"C"},
+        {"expr":"live_consistency_score","legendFormat":"live_consistency_score","refId":"D"},
+        {"expr":"(1 - autonomous_freeze_state) * 100","legendFormat":"live_active (not frozen)","refId":"E"}
+      ]
+    }
+
+  ],
+  "refresh": "30s",
+  "schemaVersion": 38,
+  "tags": ["crypto", "live", "phase-q", "execution", "capital"],
+  "time": {"from": "now-3h", "to": "now"},
+  "timepicker": {},
+  "timezone": "browser",
+  "title": "Crypto Live Governance — Phase Q",
+  "uid": "crypto-live-governance-q",
+  "version": 1
+}

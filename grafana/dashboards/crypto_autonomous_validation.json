@@ -1,0 +1,253 @@
+{
+  "uid": "crypto-autonomous-validation-p",
+  "title": "Autonomous Validation & Micro-Live Readiness — Phase P",
+  "description": "Validation layers, stability, capital preservation, execution realism, governance drift",
+  "tags": ["crypto", "quant", "validation", "phase-p", "micro-live"],
+  "schemaVersion": 38,
+  "version": 1,
+  "refresh": "60s",
+  "time": { "from": "now-12h", "to": "now" },
+  "timezone": "browser",
+  "panels": [
+
+    {
+      "id": 1,
+      "title": "Live Readiness",
+      "type": "gauge",
+      "gridPos": { "x": 0, "y": 0, "w": 4, "h": 4 },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none", "min": 0, "max": 100,
+          "thresholds": { "mode": "absolute", "steps": [
+            { "color": "red", "value": 0 },
+            { "color": "orange", "value": 50 },
+            { "color": "yellow", "value": 70 },
+            { "color": "green", "value": 85 }
+          ]}
+        }
+      },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "showThresholdLabels": true },
+      "targets": [{ "expr": "live_readiness_score", "legendFormat": "Live Readiness" }]
+    },
+
+    {
+      "id": 2,
+      "title": "Autonomy Stability",
+      "type": "gauge",
+      "gridPos": { "x": 4, "y": 0, "w": 4, "h": 4 },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none", "min": 0, "max": 100,
+          "thresholds": { "mode": "absolute", "steps": [
+            { "color": "red", "value": 0 },
+            { "color": "orange", "value": 50 },
+            { "color": "green", "value": 75 }
+          ]}
+        }
+      },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] } },
+      "targets": [{ "expr": "autonomy_stability_score", "legendFormat": "Autonomy Stability" }]
+    },
+
+    {
+      "id": 3,
+      "title": "Capital Survival",
+      "type": "gauge",
+      "gridPos": { "x": 8, "y": 0, "w": 4, "h": 4 },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none", "min": 0, "max": 100,
+          "thresholds": { "mode": "absolute", "steps": [
+            { "color": "red", "value": 0 },
+            { "color": "orange", "value": 50 },
+            { "color": "green", "value": 70 }
+          ]}
+        }
+      },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] } },
+      "targets": [{ "expr": "capital_survival_score", "legendFormat": "Capital Survival" }]
+    },
+
+    {
+      "id": 4,
+      "title": "Governance Drift",
+      "type": "gauge",
+      "gridPos": { "x": 12, "y": 0, "w": 4, "h": 4 },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none", "min": 0, "max": 100,
+          "thresholds": { "mode": "absolute", "steps": [
+            { "color": "green", "value": 0 },
+            { "color": "yellow", "value": 25 },
+            { "color": "orange", "value": 50 },
+            { "color": "red", "value": 70 }
+          ]}
+        }
+      },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] } },
+      "targets": [{ "expr": "governance_drift_score", "legendFormat": "Gov Drift (0=good)" }]
+    },
+
+    {
+      "id": 5,
+      "title": "Execution Realism",
+      "type": "gauge",
+      "gridPos": { "x": 16, "y": 0, "w": 4, "h": 4 },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none", "min": 0, "max": 100,
+          "thresholds": { "mode": "absolute", "steps": [
+            { "color": "red", "value": 0 },
+            { "color": "orange", "value": 50 },
+            { "color": "green", "value": 70 }
+          ]}
+        }
+      },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] } },
+      "targets": [{ "expr": "execution_realism_score", "legendFormat": "Exec Realism" }]
+    },
+
+    {
+      "id": 6,
+      "title": "Preservation Efficiency",
+      "type": "gauge",
+      "gridPos": { "x": 20, "y": 0, "w": 4, "h": 4 },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none", "min": 0, "max": 100,
+          "thresholds": { "mode": "absolute", "steps": [
+            { "color": "red", "value": 0 },
+            { "color": "orange", "value": 50 },
+            { "color": "green", "value": 70 }
+          ]}
+        }
+      },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] } },
+      "targets": [{ "expr": "preservation_efficiency_score", "legendFormat": "Preservation Eff" }]
+    },
+
+    {
+      "id": 10,
+      "title": "Validation Health — Timeline",
+      "type": "timeseries",
+      "gridPos": { "x": 0, "y": 4, "w": 12, "h": 7 },
+      "fieldConfig": {
+        "defaults": { "unit": "none", "min": 0, "max": 100 }
+      },
+      "options": { "tooltip": { "mode": "multi" }, "legend": { "displayMode": "list", "placement": "bottom" } },
+      "targets": [
+        { "expr": "live_readiness_score",    "legendFormat": "Live Readiness" },
+        { "expr": "autonomy_stability_score", "legendFormat": "Autonomy Stability" },
+        { "expr": "capital_survival_score",  "legendFormat": "Capital Survival" },
+        { "expr": "preservation_efficiency_score", "legendFormat": "Preservation Efficiency" }
+      ]
+    },
+
+    {
+      "id": 11,
+      "title": "Governance Drift & Execution Quality — Timeline",
+      "type": "timeseries",
+      "gridPos": { "x": 12, "y": 4, "w": 12, "h": 7 },
+      "fieldConfig": {
+        "defaults": { "unit": "none", "min": 0, "max": 100 },
+        "overrides": [
+          { "matcher": { "id": "byName", "options": "Gov Drift" },
+            "properties": [{ "id": "color", "value": { "fixedColor": "red", "mode": "fixed" } }] }
+        ]
+      },
+      "options": { "tooltip": { "mode": "multi" }, "legend": { "displayMode": "list", "placement": "bottom" } },
+      "targets": [
+        { "expr": "governance_drift_score",    "legendFormat": "Gov Drift (lower=better)" },
+        { "expr": "execution_realism_score",   "legendFormat": "Exec Realism" },
+        { "expr": "adaptive_efficiency_score", "legendFormat": "Adaptive Efficiency" }
+      ]
+    },
+
+    {
+      "id": 20,
+      "title": "Validation Cycles — Rate",
+      "type": "timeseries",
+      "gridPos": { "x": 0, "y": 11, "w": 8, "h": 6 },
+      "fieldConfig": { "defaults": { "unit": "ops" } },
+      "options": { "tooltip": { "mode": "multi" } },
+      "targets": [
+        { "expr": "rate(autonomous_validation_cycles_total[10m])", "legendFormat": "Validation cycles/min {{status}}" }
+      ]
+    },
+
+    {
+      "id": 21,
+      "title": "Emergency Contractions — Rate",
+      "type": "timeseries",
+      "gridPos": { "x": 8, "y": 11, "w": 8, "h": 6 },
+      "fieldConfig": { "defaults": { "unit": "ops" } },
+      "options": { "tooltip": { "mode": "multi" } },
+      "targets": [
+        { "expr": "rate(emergency_contractions_total[10m])", "legendFormat": "Contractions/min {{type}}" }
+      ]
+    },
+
+    {
+      "id": 22,
+      "title": "Catastrophic Scenarios — Total",
+      "type": "timeseries",
+      "gridPos": { "x": 16, "y": 11, "w": 8, "h": 6 },
+      "fieldConfig": { "defaults": { "unit": "short" } },
+      "options": { "tooltip": { "mode": "multi" } },
+      "targets": [
+        { "expr": "increase(catastrophic_scenarios_total[1h])", "legendFormat": "{{scenario}}/hr" }
+      ]
+    },
+
+    {
+      "id": 30,
+      "title": "Governance Quality — Composite",
+      "type": "timeseries",
+      "gridPos": { "x": 0, "y": 17, "w": 12, "h": 7 },
+      "fieldConfig": { "defaults": { "unit": "none", "min": 0, "max": 100 } },
+      "options": { "tooltip": { "mode": "multi" }, "legend": { "displayMode": "list", "placement": "bottom" } },
+      "targets": [
+        { "expr": "market_survival_score",         "legendFormat": "Market Survival" },
+        { "expr": "systemic_risk_score",           "legendFormat": "Systemic Risk" },
+        { "expr": "adaptive_risk_score",           "legendFormat": "Adaptive Risk" },
+        { "expr": "self_healing_score",            "legendFormat": "Self-Healing" }
+      ]
+    },
+
+    {
+      "id": 31,
+      "title": "Execution & Portfolio Quality",
+      "type": "timeseries",
+      "gridPos": { "x": 12, "y": 17, "w": 12, "h": 7 },
+      "fieldConfig": { "defaults": { "unit": "none", "min": 0, "max": 100 } },
+      "options": { "tooltip": { "mode": "multi" }, "legend": { "displayMode": "list", "placement": "bottom" } },
+      "targets": [
+        { "expr": "adaptive_exposure_score",        "legendFormat": "Adaptive Exposure" },
+        { "expr": "portfolio_survival_score",       "legendFormat": "Portfolio Survival" },
+        { "expr": "portfolio_resilience_score",     "legendFormat": "Portfolio Resilience" },
+        { "expr": "parameter_stability_score",      "legendFormat": "Parameter Stability" }
+      ]
+    },
+
+    {
+      "id": 40,
+      "title": "Validation Loop — Score History",
+      "type": "timeseries",
+      "gridPos": { "x": 0, "y": 24, "w": 24, "h": 7 },
+      "fieldConfig": {
+        "defaults": { "unit": "none", "min": 0, "max": 100 }
+      },
+      "options": { "tooltip": { "mode": "multi" }, "legend": { "displayMode": "list", "placement": "right" } },
+      "targets": [
+        { "expr": "live_readiness_score",       "legendFormat": "Live Readiness" },
+        { "expr": "autonomy_stability_score",   "legendFormat": "Autonomy Stability" },
+        { "expr": "capital_survival_score",     "legendFormat": "Capital Survival" },
+        { "expr": "governance_drift_score",     "legendFormat": "Governance Drift" },
+        { "expr": "execution_realism_score",    "legendFormat": "Execution Realism" },
+        { "expr": "market_survival_score",      "legendFormat": "Market Survival" },
+        { "expr": "adaptive_efficiency_score",  "legendFormat": "Adaptive Efficiency" }
+      ]
+    }
+
+  ]
+}

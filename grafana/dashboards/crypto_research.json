@@ -1,0 +1,220 @@
+{
+  "title": "Crypto Research — Poupi Platform",
+  "uid": "crypto-research-v1",
+  "description": "Dashboard consolidado de pesquisa quantitativa: backtests, integridade de dados, estratégias e portfólio. Phase K FASE 6.",
+  "schemaVersion": 38,
+  "version": 1,
+  "refresh": "1m",
+  "tags": ["crypto", "research", "backtest"],
+  "panels": [
+
+    { "id": 100, "type": "row", "title": "📊 Backtest Overview", "gridPos": { "x": 0, "y": 0, "w": 24, "h": 1 }, "collapsed": false },
+
+    {
+      "id": 1, "title": "Backtest Runs/min (rolling 5m)",
+      "type": "timeseries",
+      "gridPos": { "x": 0, "y": 1, "w": 8, "h": 7 },
+      "targets": [{
+        "expr": "rate(backtest_runs_total[5m]) * 60",
+        "legendFormat": "{{symbol}} {{timeframe}} {{mode}}"
+      }],
+      "fieldConfig": { "defaults": { "unit": "short", "displayName": "runs/min" } }
+    },
+    {
+      "id": 2, "title": "Backtest Duration P95 (s)",
+      "type": "timeseries",
+      "gridPos": { "x": 8, "y": 1, "w": 8, "h": 7 },
+      "targets": [{
+        "expr": "histogram_quantile(0.95, rate(backtest_duration_seconds_bucket[5m]))",
+        "legendFormat": "p95 {{symbol}} {{timeframe}}"
+      }],
+      "fieldConfig": { "defaults": { "unit": "s" } }
+    },
+    {
+      "id": 3, "title": "Candles Processed (total)",
+      "type": "stat",
+      "gridPos": { "x": 16, "y": 1, "w": 8, "h": 7 },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "value" },
+      "targets": [{
+        "expr": "sum(backtest_candles_processed_total)",
+        "legendFormat": "Total Candles"
+      }],
+      "fieldConfig": { "defaults": { "unit": "short" } }
+    },
+
+    { "id": 101, "type": "row", "title": "🔬 Parameter Sweeps", "gridPos": { "x": 0, "y": 8, "w": 24, "h": 1 }, "collapsed": false },
+
+    {
+      "id": 4, "title": "Sweep Runs Total (by strategy)",
+      "type": "bargauge",
+      "gridPos": { "x": 0, "y": 9, "w": 12, "h": 7 },
+      "targets": [{
+        "expr": "sum by (strategy_id) (sweep_runs_total)",
+        "legendFormat": "{{strategy_id}}"
+      }],
+      "options": { "orientation": "horizontal", "reduceOptions": { "calcs": ["lastNotNull"] } },
+      "fieldConfig": { "defaults": { "unit": "short" } }
+    },
+    {
+      "id": 5, "title": "Combinations Tested (by strategy)",
+      "type": "bargauge",
+      "gridPos": { "x": 12, "y": 9, "w": 12, "h": 7 },
+      "targets": [{
+        "expr": "sum by (strategy_id) (sweep_combinations_tested_total)",
+        "legendFormat": "{{strategy_id}}"
+      }],
+      "options": { "orientation": "horizontal", "reduceOptions": { "calcs": ["lastNotNull"] } },
+      "fieldConfig": { "defaults": { "unit": "short" } }
+    },
+
+    { "id": 102, "type": "row", "title": "🏆 Strategy Composite Score", "gridPos": { "x": 0, "y": 16, "w": 24, "h": 1 }, "collapsed": false },
+
+    {
+      "id": 6, "title": "Strategy Composite Score (0-100)",
+      "type": "bargauge",
+      "gridPos": { "x": 0, "y": 17, "w": 24, "h": 8 },
+      "targets": [{
+        "expr": "strategy_composite_score",
+        "legendFormat": "{{strategy_id}}"
+      }],
+      "options": {
+        "orientation": "horizontal",
+        "reduceOptions": { "calcs": ["lastNotNull"] },
+        "displayMode": "gradient"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "min": 0, "max": 100,
+          "thresholds": {
+            "steps": [
+              { "color": "red",    "value": 0   },
+              { "color": "yellow", "value": 50  },
+              { "color": "green",  "value": 70  }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": 7, "title": "Experiment Records Saved (by strategy)",
+      "type": "timeseries",
+      "gridPos": { "x": 0, "y": 25, "w": 12, "h": 7 },
+      "targets": [{
+        "expr": "sum by (strategy_id) (rate(experiment_records_total[10m])) * 600",
+        "legendFormat": "{{strategy_id}}"
+      }],
+      "fieldConfig": { "defaults": { "unit": "short", "displayName": "records/10min" } }
+    },
+    {
+      "id": 8, "title": "Scenario Runs (by scenario)",
+      "type": "timeseries",
+      "gridPos": { "x": 12, "y": 25, "w": 12, "h": 7 },
+      "targets": [{
+        "expr": "sum by (scenario, strategy_id) (rate(scenario_runs_total[10m])) * 600",
+        "legendFormat": "{{scenario}} / {{strategy_id}}"
+      }],
+      "fieldConfig": { "defaults": { "unit": "short" } }
+    },
+
+    { "id": 103, "type": "row", "title": "🗄️ OHLCV Data Quality", "gridPos": { "x": 0, "y": 32, "w": 24, "h": 1 }, "collapsed": false },
+
+    {
+      "id": 9, "title": "Fleet Integrity Score",
+      "type": "gauge",
+      "gridPos": { "x": 0, "y": 33, "w": 6, "h": 8 },
+      "targets": [{ "expr": "dataset_qa_fleet_score", "legendFormat": "Fleet Score" }],
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] } },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short", "min": 0, "max": 100,
+          "thresholds": {
+            "steps": [
+              { "color": "red",    "value": 0  },
+              { "color": "yellow", "value": 60 },
+              { "color": "green",  "value": 80 }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": 10, "title": "CRITICAL Pairs Count",
+      "type": "stat",
+      "gridPos": { "x": 6, "y": 33, "w": 6, "h": 8 },
+      "targets": [{ "expr": "dataset_qa_critical_count", "legendFormat": "Critical" }],
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background" },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": {
+            "steps": [
+              { "color": "green",  "value": 0 },
+              { "color": "yellow", "value": 1 },
+              { "color": "red",    "value": 3 }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": 11, "title": "OHLCV Integrity Checks (by status)",
+      "type": "timeseries",
+      "gridPos": { "x": 12, "y": 33, "w": 12, "h": 8 },
+      "targets": [{
+        "expr": "sum by (status) (rate(ohlcv_integrity_checks_total[10m])) * 600",
+        "legendFormat": "{{status}}"
+      }],
+      "fieldConfig": { "defaults": { "unit": "short" } }
+    },
+    {
+      "id": 12, "title": "Gaps Detected (by symbol)",
+      "type": "timeseries",
+      "gridPos": { "x": 0, "y": 41, "w": 12, "h": 7 },
+      "targets": [{
+        "expr": "sum by (symbol) (rate(ohlcv_gaps_detected_total[10m])) * 600",
+        "legendFormat": "{{symbol}}"
+      }],
+      "fieldConfig": { "defaults": { "unit": "short" } }
+    },
+
+    { "id": 104, "type": "row", "title": "📁 Portfolio Simulations", "gridPos": { "x": 0, "y": 48, "w": 24, "h": 1 }, "collapsed": false },
+
+    {
+      "id": 13, "title": "Portfolio Simulations Run",
+      "type": "stat",
+      "gridPos": { "x": 0, "y": 49, "w": 8, "h": 6 },
+      "targets": [{ "expr": "sum(portfolio_simulations_total)", "legendFormat": "Total Simulations" }],
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] } },
+      "fieldConfig": { "defaults": { "unit": "short" } }
+    },
+    {
+      "id": 14, "title": "Simulations by Strategy Count",
+      "type": "bargauge",
+      "gridPos": { "x": 8, "y": 49, "w": 16, "h": 6 },
+      "targets": [{
+        "expr": "sum by (n_strategies) (portfolio_simulations_total)",
+        "legendFormat": "{{n_strategies}} strategies"
+      }],
+      "options": { "orientation": "horizontal", "reduceOptions": { "calcs": ["lastNotNull"] } }
+    }
+  ],
+
+  "time": { "from": "now-7d", "to": "now" },
+  "timepicker": {},
+  "templating": {
+    "list": [
+      {
+        "name": "symbol",
+        "type": "custom",
+        "label": "Symbol",
+        "current": { "value": "BTC/USDT" },
+        "options": [
+          { "value": "BTC/USDT", "text": "BTC/USDT" },
+          { "value": "ETH/USDT", "text": "ETH/USDT" },
+          { "value": "SOL/USDT", "text": "SOL/USDT" }
+        ]
+      }
+    ]
+  }
+}

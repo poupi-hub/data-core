@@ -1,0 +1,314 @@
+{
+  "annotations": {
+    "list": [
+      {
+        "datasource": { "type": "prometheus", "uid": "Prometheus" },
+        "enable": true,
+        "expr": "changes(data_core_scheduler_state[1h]) > 0",
+        "iconColor": "orange",
+        "name": "Scheduler state changes"
+      }
+    ]
+  },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 0,
+  "id": null,
+  "links": [
+    {
+      "title": "Runbook",
+      "type": "link",
+      "url": "docs/scheduler-incident-response.md"
+    }
+  ],
+  "panels": [
+    {
+      "datasource": { "type": "prometheus", "uid": "Prometheus" },
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [
+            { "options": { "0": { "text": "HEALTHY", "color": "green" } }, "type": "value" },
+            { "options": { "1": { "text": "ELEVATED", "color": "blue" } }, "type": "value" },
+            { "options": { "2": { "text": "HIGH", "color": "orange" } }, "type": "value" },
+            { "options": { "3": { "text": "CRITICAL", "color": "red" } }, "type": "value" },
+            { "options": { "4": { "text": "OOM RECENT", "color": "red" } }, "type": "value" },
+            { "options": { "5": { "text": "RESTART LOOP", "color": "red" } }, "type": "value" },
+            { "options": { "6": { "text": "DEGRADED", "color": "orange" } }, "type": "value" },
+            { "options": { "7": { "text": "OBSERVE MORE", "color": "yellow" } }, "type": "value" }
+          ],
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "orange", "value": 1 }, { "color": "red", "value": 3 }] },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 5, "w": 6, "x": 0, "y": 0 },
+      "id": 1,
+      "options": { "colorMode": "background", "graphMode": "none", "justifyMode": "center", "orientation": "horizontal", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "textMode": "value" },
+      "targets": [{ "expr": "data_core_scheduler_state", "legendFormat": "state" }],
+      "title": "Current state",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "Prometheus" },
+      "fieldConfig": { "defaults": { "mappings": [{ "options": { "0": { "text": "info", "color": "green" }, "1": { "text": "warning", "color": "orange" }, "2": { "text": "critical", "color": "red" } }, "type": "value" }], "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "orange", "value": 1 }, { "color": "red", "value": 2 }] }, "unit": "short" }, "overrides": [] },
+      "gridPos": { "h": 5, "w": 6, "x": 6, "y": 0 },
+      "id": 2,
+      "options": { "colorMode": "background", "graphMode": "none", "justifyMode": "center", "orientation": "horizontal", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "textMode": "value" },
+      "targets": [{ "expr": "data_core_scheduler_alert_severity", "legendFormat": "severity" }],
+      "title": "Alert severity",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "Prometheus" },
+      "fieldConfig": { "defaults": { "unit": "bytes" }, "overrides": [] },
+      "gridPos": { "h": 5, "w": 6, "x": 12, "y": 0 },
+      "id": 3,
+      "options": { "colorMode": "none", "graphMode": "area", "justifyMode": "center", "orientation": "horizontal", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "textMode": "value_and_name" },
+      "targets": [
+        { "expr": "data_core_scheduler_memory_usage_bytes", "legendFormat": "usage" },
+        { "expr": "data_core_scheduler_memory_limit_bytes", "legendFormat": "limit" }
+      ],
+      "title": "Memory usage and limit",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "Prometheus" },
+      "fieldConfig": { "defaults": { "unit": "percentunit", "min": 0, "max": 1, "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "blue", "value": 0.6 }, { "color": "orange", "value": 0.75 }, { "color": "red", "value": 0.9 }] } }, "overrides": [] },
+      "gridPos": { "h": 5, "w": 6, "x": 18, "y": 0 },
+      "id": 4,
+      "options": { "displayMode": "gradient", "maxVizHeight": 300, "minVizHeight": 16, "minVizWidth": 8, "orientation": "horizontal", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "showUnfilled": true, "valueMode": "color" },
+      "targets": [{ "expr": "data_core_scheduler_memory_usage_ratio", "legendFormat": "memory ratio" }],
+      "title": "Memory ratio",
+      "type": "bargauge"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "Prometheus" },
+      "fieldConfig": { "defaults": { "unit": "percentunit", "min": 0, "max": 1 }, "overrides": [] },
+      "gridPos": { "h": 8, "w": 8, "x": 0, "y": 5 },
+      "id": 5,
+      "targets": [
+        { "expr": "data_core_scheduler_memory_usage_ratio", "legendFormat": "usage ratio" },
+        { "expr": "0.75", "legendFormat": "warning" },
+        { "expr": "0.90", "legendFormat": "critical" }
+      ],
+      "title": "Memory ratio timeline",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "Prometheus" },
+      "fieldConfig": { "defaults": { "unit": "percentunit", "min": 0, "max": 1 }, "overrides": [] },
+      "gridPos": { "h": 8, "w": 8, "x": 8, "y": 5 },
+      "id": 6,
+      "targets": [
+        { "expr": "data_core_scheduler_swap_usage_ratio", "legendFormat": "swap ratio" },
+        { "expr": "0.20", "legendFormat": "warning" }
+      ],
+      "title": "Swap ratio timeline",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "Prometheus" },
+      "fieldConfig": { "defaults": { "unit": "Bps" }, "overrides": [] },
+      "gridPos": { "h": 8, "w": 8, "x": 16, "y": 5 },
+      "id": 7,
+      "targets": [
+        { "expr": "data_core_scheduler_growth_rate", "legendFormat": "growth bytes/s" },
+        { "expr": "524288", "legendFormat": "leak watch" }
+      ],
+      "title": "Trend analysis: growth rate",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "Prometheus" },
+      "fieldConfig": { "defaults": { "unit": "short", "min": 0 }, "overrides": [] },
+      "gridPos": { "h": 8, "w": 6, "x": 0, "y": 13 },
+      "id": 8,
+      "targets": [{ "expr": "data_core_scheduler_restart_count", "legendFormat": "restart count" }],
+      "title": "Restart count",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "Prometheus" },
+      "fieldConfig": { "defaults": { "unit": "short", "min": 0 }, "overrides": [] },
+      "gridPos": { "h": 8, "w": 6, "x": 6, "y": 13 },
+      "id": 9,
+      "targets": [{ "expr": "data_core_scheduler_oom_events_total", "legendFormat": "OOM total" }],
+      "title": "OOM total",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "Prometheus" },
+      "fieldConfig": { "defaults": { "unit": "percentunit", "min": 0, "max": 1 }, "overrides": [] },
+      "gridPos": { "h": 8, "w": 6, "x": 12, "y": 13 },
+      "id": 10,
+      "targets": [
+        { "expr": "data_core_scheduler_backlog_score", "legendFormat": "backlog score" },
+        { "expr": "0.75", "legendFormat": "threshold" }
+      ],
+      "title": "Backlog score",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "Prometheus" },
+      "fieldConfig": { "defaults": { "unit": "s", "min": 0 }, "overrides": [] },
+      "gridPos": { "h": 8, "w": 6, "x": 18, "y": 13 },
+      "id": 11,
+      "targets": [{ "expr": "data_core_scheduler_cycle_duration_seconds", "legendFormat": "cycle duration" }],
+      "title": "Scheduler cycle duration",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "Prometheus" },
+      "fieldConfig": { "defaults": { "unit": "short", "min": 0, "max": 7 }, "overrides": [] },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 21 },
+      "id": 12,
+      "targets": [{ "expr": "data_core_scheduler_state", "legendFormat": "state value" }],
+      "title": "State timeline",
+      "type": "state-timeline"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "Prometheus" },
+      "description": "Operational interpretation: 0=healthy, 1=elevated, 2=high, 3=critical, 4=OOM recent, 5=restart loop, 6=degraded, 7=observe more.",
+      "fieldConfig": { "defaults": { "unit": "short" }, "overrides": [] },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 21 },
+      "id": 13,
+      "options": { "content": "Use `/api/v1/runtime/scheduler-summary` for the current recommendation. If memory >75% for 10m, inspect trend and backlog. If memory >90%, OOM recent, or restart count increases, preserve logs before any manual action. Avoid automatic restarts and do not alter pipeline concurrency without evidence.", "mode": "markdown" },
+      "title": "Operational recommendations",
+      "type": "text"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "Prometheus" },
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [
+            { "options": { "0": { "text": "NORMAL", "color": "green" }, "1": { "text": "CONSERVATIVE", "color": "blue" }, "2": { "text": "PROTECTIVE", "color": "orange" }, "3": { "text": "CRITICAL", "color": "red" } }, "type": "value" }
+          ],
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "blue", "value": 1 }, { "color": "orange", "value": 2 }, { "color": "red", "value": 3 }] },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 5, "w": 6, "x": 0, "y": 29 },
+      "id": 14,
+      "options": { "colorMode": "background", "graphMode": "none", "justifyMode": "center", "orientation": "horizontal", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "textMode": "value" },
+      "targets": [{ "expr": "data_core_scheduler_protection_mode", "legendFormat": "mode" }],
+      "title": "Protection mode",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "Prometheus" },
+      "fieldConfig": { "defaults": { "unit": "short", "min": 0 }, "overrides": [] },
+      "gridPos": { "h": 5, "w": 6, "x": 6, "y": 29 },
+      "id": 15,
+      "options": { "colorMode": "none", "graphMode": "area", "justifyMode": "center", "orientation": "horizontal", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "textMode": "value" },
+      "targets": [{ "expr": "data_core_scheduler_effective_concurrency", "legendFormat": "concurrency" }],
+      "title": "Effective concurrency",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "Prometheus" },
+      "fieldConfig": { "defaults": { "unit": "short", "min": 0 }, "overrides": [] },
+      "gridPos": { "h": 5, "w": 6, "x": 12, "y": 29 },
+      "id": 16,
+      "options": { "displayMode": "basic", "orientation": "horizontal", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "showUnfilled": true, "valueMode": "color" },
+      "targets": [{ "expr": "data_core_scheduler_effective_batch_size", "legendFormat": "{{job_name}}" }],
+      "title": "Effective batch size",
+      "type": "bargauge"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "Prometheus" },
+      "fieldConfig": { "defaults": { "unit": "s", "min": 0 }, "overrides": [] },
+      "gridPos": { "h": 5, "w": 6, "x": 18, "y": 29 },
+      "id": 17,
+      "options": { "displayMode": "basic", "orientation": "horizontal", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "showUnfilled": true, "valueMode": "color" },
+      "targets": [{ "expr": "data_core_scheduler_effective_cooldown_seconds", "legendFormat": "{{job_name}}" }],
+      "title": "Active cooldowns",
+      "type": "bargauge"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "Prometheus" },
+      "fieldConfig": { "defaults": { "unit": "short", "min": 0 }, "overrides": [] },
+      "gridPos": { "h": 8, "w": 8, "x": 0, "y": 34 },
+      "id": 18,
+      "targets": [{ "expr": "increase(data_core_scheduler_throttled_jobs_total[1h])", "legendFormat": "{{job_name}} {{mode}} {{dry_run}}" }],
+      "title": "Throttled jobs",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "Prometheus" },
+      "fieldConfig": { "defaults": { "unit": "short" }, "overrides": [] },
+      "gridPos": { "h": 8, "w": 8, "x": 8, "y": 34 },
+      "id": 19,
+      "targets": [
+        { "expr": "data_core_scheduler_backlog_growth_rate", "legendFormat": "backlog growth/s" },
+        { "expr": "data_core_scheduler_throughput_estimate", "legendFormat": "throughput estimate" }
+      ],
+      "title": "Backlog trend vs throughput",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "Prometheus" },
+      "fieldConfig": { "defaults": { "unit": "short", "min": 0, "max": 3 }, "overrides": [] },
+      "gridPos": { "h": 8, "w": 8, "x": 16, "y": 34 },
+      "id": 20,
+      "targets": [{ "expr": "data_core_scheduler_protection_mode", "legendFormat": "mode" }],
+      "title": "Degradation timeline",
+      "type": "state-timeline"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "Prometheus" },
+      "fieldConfig": { "defaults": { "unit": "short", "min": 0 }, "overrides": [] },
+      "gridPos": { "h": 8, "w": 8, "x": 0, "y": 42 },
+      "id": 21,
+      "targets": [{ "expr": "increase(reliability_dry_run_decisions_total[1h])", "legendFormat": "{{priority}} {{mode}}" }],
+      "title": "Dry-run decisions timeline",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "Prometheus" },
+      "fieldConfig": { "defaults": { "unit": "short", "min": 0 }, "overrides": [] },
+      "gridPos": { "h": 8, "w": 8, "x": 8, "y": 42 },
+      "id": 22,
+      "targets": [
+        { "expr": "reliability_mode_changes_total", "legendFormat": "mode changes" },
+        { "expr": "increase(reliability_false_positive_candidates_total[1h])", "legendFormat": "false-positive candidates" }
+      ],
+      "title": "Mode changes",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "Prometheus" },
+      "fieldConfig": { "defaults": { "unit": "percentunit", "min": 0, "max": 1 }, "overrides": [] },
+      "gridPos": { "h": 8, "w": 8, "x": 16, "y": 42 },
+      "id": 23,
+      "targets": [
+        { "expr": "reliability_max_memory_ratio_observed", "legendFormat": "max memory ratio" },
+        { "expr": "reliability_max_backlog_score_observed", "legendFormat": "max backlog score" }
+      ],
+      "title": "Max observed pressure",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "Prometheus" },
+      "description": "Dry-run activation readiness guardrail.",
+      "fieldConfig": { "defaults": { "unit": "short" }, "overrides": [] },
+      "gridPos": { "h": 6, "w": 24, "x": 0, "y": 50 },
+      "id": 24,
+      "options": { "content": "Read `/api/v1/runtime/scheduler-reliability-audit` before any activation. Activate only if NORMAL is stable, mode changes are rare, false-positive ratio is <=2%, audit integrity is clean, and max observed pressure stays below protective thresholds. Keep `SCHEDULER_RELIABILITY_DRY_RUN=true` until the report returns `READY_FOR_LIMITED_ENABLEMENT`.", "mode": "markdown" },
+      "title": "Activation readiness panel",
+      "type": "text"
+    }
+  ],
+  "refresh": "30s",
+  "schemaVersion": 39,
+  "style": "dark",
+  "tags": ["data-core", "scheduler", "runtime", "oom-prevention"],
+  "templating": { "list": [] },
+  "time": { "from": "now-6h", "to": "now" },
+  "timepicker": {},
+  "timezone": "browser",
+  "title": "Data Core Scheduler Runtime",
+  "uid": "data-core-scheduler-runtime",
+  "version": 4,
+  "weekStart": ""
+}

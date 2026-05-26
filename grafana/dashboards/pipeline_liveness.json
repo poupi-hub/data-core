@@ -1,0 +1,84 @@
+{
+  "title": "Pipeline Liveness",
+  "uid": "pipeline-liveness",
+  "schemaVersion": 38,
+  "version": 1,
+  "refresh": "30s",
+  "tags": ["pipeline", "reliability", "liveness"],
+  "panels": [
+    {
+      "id": 1,
+      "title": "Pipeline Status Overview",
+      "type": "stat",
+      "gridPos": { "x": 0, "y": 0, "w": 24, "h": 4 },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background" },
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [
+            { "options": { "0": { "text": "UNKNOWN", "color": "gray" }, "1": { "text": "DEAD", "color": "red" }, "2": { "text": "BLOCKED", "color": "orange" }, "3": { "text": "STALLED", "color": "yellow" }, "4": { "text": "DEGRADED", "color": "blue" }, "5": { "text": "RUNNING", "color": "green" } }, "type": "value" }
+          ],
+          "thresholds": { "steps": [{ "color": "red", "value": 0 }, { "color": "yellow", "value": 3 }, { "color": "green", "value": 5 }] }
+        }
+      },
+      "targets": [
+        { "expr": "pipeline_liveness_status", "legendFormat": "{{pipeline_id}}" }
+      ]
+    },
+    {
+      "id": 2,
+      "title": "Pipeline Lag (seconds since last success)",
+      "type": "timeseries",
+      "gridPos": { "x": 0, "y": 4, "w": 16, "h": 8 },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "thresholds": { "steps": [{ "color": "green", "value": 0 }, { "color": "yellow", "value": 1800 }, { "color": "red", "value": 3600 }] }
+        }
+      },
+      "targets": [
+        { "expr": "pipeline_liveness_lag_seconds > 0", "legendFormat": "{{pipeline_id}}" }
+      ]
+    },
+    {
+      "id": 3,
+      "title": "Dead/Stalled/Blocked Count",
+      "type": "stat",
+      "gridPos": { "x": 16, "y": 4, "w": 8, "h": 8 },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] } },
+      "fieldConfig": {
+        "defaults": { "thresholds": { "steps": [{ "color": "green", "value": 0 }, { "color": "yellow", "value": 1 }, { "color": "red", "value": 3 }] } }
+      },
+      "targets": [
+        { "expr": "count(pipeline_liveness_status <= 2)", "legendFormat": "Dead/Blocked/Stalled" },
+        { "expr": "count(pipeline_liveness_status == 1)", "legendFormat": "DEAD" },
+        { "expr": "count(pipeline_liveness_status == 2)", "legendFormat": "BLOCKED" },
+        { "expr": "count(pipeline_liveness_status == 3)", "legendFormat": "STALLED" }
+      ]
+    },
+    {
+      "id": 4,
+      "title": "Normalization Backlog (ecommerce)",
+      "type": "timeseries",
+      "gridPos": { "x": 0, "y": 12, "w": 12, "h": 8 },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": { "steps": [{ "color": "green", "value": 0 }, { "color": "yellow", "value": 50 }, { "color": "red", "value": 200 }] }
+        }
+      },
+      "targets": [
+        { "expr": "queue_backlog_total", "legendFormat": "{{module}} backlog" }
+      ]
+    },
+    {
+      "id": 5,
+      "title": "Queue Lag (oldest pending raw)",
+      "type": "timeseries",
+      "gridPos": { "x": 12, "y": 12, "w": 12, "h": 8 },
+      "fieldConfig": { "defaults": { "unit": "s" } },
+      "targets": [
+        { "expr": "queue_lag_seconds > 0", "legendFormat": "{{module}} oldest pending" }
+      ]
+    }
+  ]
+}

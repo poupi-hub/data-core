@@ -1,0 +1,69 @@
+{
+  "title": "Queue Lag Intelligence",
+  "uid": "queue-lag",
+  "schemaVersion": 38,
+  "version": 1,
+  "refresh": "30s",
+  "tags": ["queue", "backlog", "lag"],
+  "panels": [
+    {
+      "id": 1,
+      "title": "Normalization Backlog by Module",
+      "type": "bargauge",
+      "gridPos": { "x": 0, "y": 0, "w": 12, "h": 8 },
+      "options": { "orientation": "horizontal", "reduceOptions": { "calcs": ["lastNotNull"] } },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": { "steps": [{ "color": "green", "value": 0 }, { "color": "yellow", "value": 50 }, { "color": "red", "value": 500 }] }
+        }
+      },
+      "targets": [{ "expr": "queue_backlog_total", "legendFormat": "{{module}}" }]
+    },
+    {
+      "id": 2,
+      "title": "Queue Lag — Oldest Pending (seconds)",
+      "type": "bargauge",
+      "gridPos": { "x": 12, "y": 0, "w": 12, "h": 8 },
+      "options": { "orientation": "horizontal", "reduceOptions": { "calcs": ["lastNotNull"] } },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "thresholds": { "steps": [{ "color": "green", "value": 0 }, { "color": "yellow", "value": 1800 }, { "color": "red", "value": 7200 }] }
+        }
+      },
+      "targets": [{ "expr": "queue_lag_seconds", "legendFormat": "{{module}}" }]
+    },
+    {
+      "id": 3,
+      "title": "Backlog Trend (ecommerce)",
+      "type": "timeseries",
+      "gridPos": { "x": 0, "y": 8, "w": 24, "h": 8 },
+      "fieldConfig": { "defaults": { "unit": "short" } },
+      "targets": [
+        { "expr": "queue_backlog_total{module='ecommerce'}", "legendFormat": "ecommerce pending" },
+        { "expr": "raws_pending_total{module='ecommerce'}", "legendFormat": "ecommerce raws_pending (Prometheus)" }
+      ]
+    },
+    {
+      "id": 4,
+      "title": "Normalization Rate (items/min)",
+      "type": "timeseries",
+      "gridPos": { "x": 0, "y": 16, "w": 12, "h": 8 },
+      "fieldConfig": { "defaults": { "unit": "short" } },
+      "targets": [
+        { "expr": "rate(pipeline_items_processed_total{stage='normalization'}[5m]) * 60", "legendFormat": "{{domain}} normalized/min" }
+      ]
+    },
+    {
+      "id": 5,
+      "title": "Normalization Lag (raw→normalized)",
+      "type": "timeseries",
+      "gridPos": { "x": 12, "y": 16, "w": 12, "h": 8 },
+      "fieldConfig": { "defaults": { "unit": "s" } },
+      "targets": [
+        { "expr": "normalization_lag_seconds", "legendFormat": "{{module}}" }
+      ]
+    }
+  ]
+}
