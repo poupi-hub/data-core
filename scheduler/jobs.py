@@ -917,6 +917,8 @@ def data_retention_job(
     run_retention_days: int = 60,
     lineage_retention_days: int = 180,
     error_retention_days: int = 90,
+    quality_score_retention_days: int = 90,
+    signal_outcome_retention_days: int = 180,
     batch_size: int = 1000,
 ) -> dict[str, int]:
     """Delete old processed records to control DB growth.
@@ -928,10 +930,14 @@ def data_retention_job(
       4. CollectorError resolved > error_retention_days
       5. CollectionRun finished > run_retention_days
       6. RawCollection processed/ignored > raw_retention_days
+      7. CryptoDatasetQualityScore evaluated > quality_score_retention_days
+      8. TradingSignalOutcome evaluated > signal_outcome_retention_days
     """
     from app.normalization.models import NormalizedProduct
     from app.analytics.models import ProductPriceAnalytics
     from app.documentation.models import DataLineage
+    from app.data_quality.crypto.models import CryptoDatasetQualityScore
+    from app.modules.trading.validation.models import TradingSignalOutcome
 
     now = datetime.now(timezone.utc)
     cutoff_raw = now - timedelta(days=raw_retention_days)
@@ -939,6 +945,8 @@ def data_retention_job(
     cutoff_run = now - timedelta(days=run_retention_days)
     cutoff_lineage = now - timedelta(days=lineage_retention_days)
     cutoff_error = now - timedelta(days=error_retention_days)
+    cutoff_quality = now - timedelta(days=quality_score_retention_days)
+    cutoff_outcome = now - timedelta(days=signal_outcome_retention_days)
 
     db = SessionLocal()
     totals: dict[str, int] = {
@@ -948,6 +956,8 @@ def data_retention_job(
         "deleted_errors": 0,
         "deleted_runs": 0,
         "deleted_raw": 0,
+        "deleted_quality_scores": 0,
+        "deleted_signal_outcomes": 0,
     }
     try:
         # 1. Analytics + normalized products
@@ -1021,6 +1031,22 @@ def data_retention_job(
                 .filter(RawCollection.id.in_(old_raw_ids))
                 .delete(synchronize_session=False)
             )
+
+        # 7. CryptoDatasetQualityScore older than quality_score_retention_days
+        totals["deleted_quality_scores"] = (
+            db.query(CryptoDatasetQualityScore)
+            .filter(CryptoDatasetQualityScore.evaluated_at < cutoff_quality)
+            .limit(batch_size)
+            .delete(synchronize_session=False)
+        )
+
+        # 8. TradingSignalOutcome older than signal_outcome_retention_days
+        totals["deleted_signal_outcomes"] = (
+            db.query(TradingSignalOutcome)
+            .filter(TradingSignalOutcome.evaluated_at < cutoff_outcome)
+            .limit(batch_size)
+            .delete(synchronize_session=False)
+        )
 
         db.commit()
         logger.info("Data retention cleanup complete", extra=totals)
@@ -1411,4 +1437,3 @@ def signal_outcomes_job() -> None:
         started_at=started_at,
         collected_count=evaluated,
     )
-        raise

@@ -17,7 +17,7 @@ from __future__ import annotations
 import logging
 from datetime import datetime, timedelta, timezone
 
-from sqlalchemy import func
+from sqlalchemy import func, exists
 from sqlalchemy.orm import Session
 
 from app.analytics.models import TradingAnalytics
@@ -64,21 +64,18 @@ class SignalOutcomeTracker:
         now = datetime.now(tz=timezone.utc)
         lookback_start = now - timedelta(days=_MAX_LOOKBACK_DAYS)
 
-        # Analytics IDs already evaluated
-        evaluated_ids = {
-            row[0]
-            for row in self.db.query(TradingSignalOutcome.analytics_id)
-            .filter(TradingSignalOutcome.analytics_id.isnot(None))
-            .all()
-        }
-
-        # Fetch pending BUY/SELL signals
+        # Fetch pending BUY/SELL signals — exclude already-evaluated rows via EXISTS subquery
+        # (avoids loading all evaluated IDs into Python memory as the table grows)
+        already_evaluated = (
+            exists()
+            .where(TradingSignalOutcome.analytics_id == TradingAnalytics.id)
+        )
         pending = (
             self.db.query(TradingAnalytics)
             .filter(
                 TradingAnalytics.signal.in_(["BUY", "SELL"]),
                 TradingAnalytics.calculated_at >= lookback_start,
-                TradingAnalytics.id.notin_(evaluated_ids) if evaluated_ids else True,
+                ~already_evaluated,
             )
             .order_by(TradingAnalytics.calculated_at)
             .limit(limit)

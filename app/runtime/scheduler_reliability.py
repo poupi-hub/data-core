@@ -50,6 +50,8 @@ JOB_PRIORITIES = {
     "normalize_job": "HIGH",
     "analytics_job": "NORMAL",
     "run_ecommerce_url_targets_job": "NORMAL",
+    "dataset_quality_crypto_job": "NORMAL",
+    "signal_outcomes_job": "NORMAL",
     "run_real_estate_daily_collection": "LOW",
     "alert_webhook_job": "LOW",
     "data_retention_job": "LOW",
