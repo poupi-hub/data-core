@@ -1,0 +1,87 @@
+groups:
+  - name: dataset-quality-crypto
+    interval: 120s
+    rules:
+
+      # ── Integrity score ────────────────────────────────────────────────────
+
+      - alert: CryptoDatasetLowIntegrity
+        expr: >
+          dataset_integrity_score < 50
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Crypto dataset integrity below 50 for {{ $labels.symbol }}/{{ $labels.timeframe }}"
+          description: >
+            dataset_integrity_score{symbol="{{ $labels.symbol }}", timeframe="{{ $labels.timeframe }}"} = {{ $value | printf "%.1f" }}.
+            Score below 50/100 indicates degraded freshness, coverage, or OHLC consistency.
+            Check the Dataset Quality dashboard and data-core collector logs.
+
+      - alert: CryptoDatasetCriticallyDegraded
+        expr: >
+          dataset_integrity_score < 20
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Crypto dataset critically degraded for {{ $labels.symbol }}/{{ $labels.timeframe }}"
+          description: >
+            dataset_integrity_score = {{ $value | printf "%.1f" }}.
+            Score below 20 indicates near-total data loss or pipeline failure for this pair.
+            Immediate investigation required.
+
+      # ── Coverage ───────────────────────────────────────────────────────────
+
+      - alert: CryptoDatasetLowCoverage
+        expr: >
+          candle_coverage_pct < 50
+        for: 30m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Candle coverage < 50% for {{ $labels.symbol }}/{{ $labels.timeframe }}"
+          description: >
+            candle_coverage_pct = {{ $value | printf "%.1f" }}%.
+            Fewer than half the expected candles arrived in the last 24h.
+            Possible cause: exchange downtime, network partition, or collector configuration error.
+
+      - alert: CryptoDatasetMissingCoverage
+        expr: >
+          candle_coverage_pct < 10
+        for: 15m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Candle coverage critically missing for {{ $labels.symbol }}/{{ $labels.timeframe }}"
+          description: >
+            candle_coverage_pct = {{ $value | printf "%.1f" }}%.
+            Symbol/timeframe effectively has no data. Signals generated from this pair are unreliable.
+
+      # ── Staleness ──────────────────────────────────────────────────────────
+
+      - alert: CryptoDatasetGapSpike
+        expr: >
+          increase(candle_gap_total[1h]) > 5
+        for: 0m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Candle gap spike detected for {{ $labels.symbol }}/{{ $labels.timeframe }}"
+          description: >
+            {{ $value | printf "%.0f" }} new gaps detected in the last 1h for
+            {{ $labels.symbol }}/{{ $labels.timeframe }}.
+            This may indicate intermittent collection failures or exchange rate limiting.
+
+      - alert: CryptoDatasetStaleData
+        expr: >
+          increase(stale_candle_total[30m]) > 0
+        for: 0m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Stale candle detection fired for {{ $labels.symbol }}/{{ $labels.timeframe }}"
+          description: >
+            stale_candle_total increased in the last 30m for {{ $labels.symbol }}/{{ $labels.timeframe }}.
+            Last candle is older than 2× the expected collection interval.
+            Verify collect_raw_job and normalize_job are running.

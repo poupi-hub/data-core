@@ -1,0 +1,180 @@
+{
+  "uid": "dataset-quality-crypto",
+  "title": "Dataset Quality — Crypto OHLCV",
+  "description": "Freshness, coverage, OHLC integrity scores for each symbol/timeframe pair. Powered by data-core dataset_quality_crypto_job (runs every 30 min).",
+  "tags": ["crypto", "quality", "data-core"],
+  "schemaVersion": 38,
+  "version": 1,
+  "refresh": "1m",
+  "time": { "from": "now-6h", "to": "now" },
+  "timezone": "browser",
+  "panels": [
+
+    {
+      "id": 1,
+      "title": "Dataset Integrity Score (all pairs)",
+      "description": "Composite integrity score 0-100 per symbol/timeframe. Green ≥ 80, Yellow 50-79, Red < 50.",
+      "type": "stat",
+      "gridPos": { "x": 0, "y": 0, "w": 12, "h": 5 },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "min": 0,
+          "max": 100,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red", "value": 0 },
+              { "color": "orange", "value": 50 },
+              { "color": "yellow", "value": 65 },
+              { "color": "green", "value": 80 }
+            ]
+          }
+        }
+      },
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"] },
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "value_and_name"
+      },
+      "targets": [
+        { "expr": "dataset_integrity_score", "legendFormat": "{{symbol}} {{timeframe}}" }
+      ]
+    },
+
+    {
+      "id": 2,
+      "title": "Candle Coverage % (last 24h)",
+      "description": "Percentage of expected candles received in the last 24 hours.",
+      "type": "gauge",
+      "gridPos": { "x": 12, "y": 0, "w": 12, "h": 5 },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "min": 0,
+          "max": 100,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red", "value": 0 },
+              { "color": "orange", "value": 50 },
+              { "color": "yellow", "value": 75 },
+              { "color": "green", "value": 90 }
+            ]
+          }
+        }
+      },
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"] },
+        "showThresholdLabels": false,
+        "showThresholdMarkers": true
+      },
+      "targets": [
+        { "expr": "candle_coverage_pct", "legendFormat": "{{symbol}} {{timeframe}}" }
+      ]
+    },
+
+    {
+      "id": 3,
+      "title": "Stale Candle Detections (rate)",
+      "description": "Rate of stale candle detections per symbol/timeframe. Spikes indicate collection delays.",
+      "type": "timeseries",
+      "gridPos": { "x": 0, "y": 5, "w": 12, "h": 6 },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": { "lineWidth": 2, "fillOpacity": 10 }
+        }
+      },
+      "options": {
+        "tooltip": { "mode": "multi" },
+        "legend": { "displayMode": "list", "placement": "bottom" }
+      },
+      "targets": [
+        {
+          "expr": "increase(stale_candle_total[30m])",
+          "legendFormat": "{{symbol}} {{timeframe}}"
+        }
+      ]
+    },
+
+    {
+      "id": 4,
+      "title": "Candle Gap Detections (rate)",
+      "description": "Number of missing candle intervals detected per 30-minute window.",
+      "type": "timeseries",
+      "gridPos": { "x": 12, "y": 5, "w": 12, "h": 6 },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": { "lineWidth": 2, "fillOpacity": 10 }
+        }
+      },
+      "options": {
+        "tooltip": { "mode": "multi" },
+        "legend": { "displayMode": "list", "placement": "bottom" }
+      },
+      "targets": [
+        {
+          "expr": "increase(candle_gap_total[30m])",
+          "legendFormat": "{{symbol}} {{timeframe}}"
+        }
+      ]
+    },
+
+    {
+      "id": 5,
+      "title": "Integrity Score Trend",
+      "description": "Historical trend of dataset_integrity_score. Degradation over time signals collection pipeline issues.",
+      "type": "timeseries",
+      "gridPos": { "x": 0, "y": 11, "w": 24, "h": 7 },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "min": 0,
+          "max": 100,
+          "custom": { "lineWidth": 2, "fillOpacity": 5 },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red", "value": 0 },
+              { "color": "yellow", "value": 50 },
+              { "color": "green", "value": 80 }
+            ]
+          }
+        }
+      },
+      "options": {
+        "tooltip": { "mode": "multi" },
+        "legend": { "displayMode": "table", "placement": "right" }
+      },
+      "targets": [
+        { "expr": "dataset_integrity_score", "legendFormat": "{{symbol}} {{timeframe}}" }
+      ]
+    },
+
+    {
+      "id": 6,
+      "title": "Coverage % Trend",
+      "description": "Coverage percentage over time per symbol/timeframe.",
+      "type": "timeseries",
+      "gridPos": { "x": 0, "y": 18, "w": 24, "h": 7 },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "min": 0,
+          "max": 100,
+          "custom": { "lineWidth": 2, "fillOpacity": 5 }
+        }
+      },
+      "options": {
+        "tooltip": { "mode": "multi" },
+        "legend": { "displayMode": "table", "placement": "right" }
+      },
+      "targets": [
+        { "expr": "candle_coverage_pct", "legendFormat": "{{symbol}} {{timeframe}}" }
+      ]
+    }
+  ]
+}

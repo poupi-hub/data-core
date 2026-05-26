@@ -1,0 +1,232 @@
+{
+  "uid": "volatile-comparison",
+  "title": "Volatile vs Main — Signal Comparison",
+  "description": "Side-by-side comparison of SOL/DOGE/XRP (volatile runtime) vs BTC/ETH (main runtime). Validates the hypothesis that volatile pairs generate richer regime diversity.",
+  "tags": ["crypto", "volatile", "quant", "comparison"],
+  "schemaVersion": 38,
+  "version": 1,
+  "refresh": "1m",
+  "time": { "from": "now-24h", "to": "now" },
+  "timezone": "browser",
+  "panels": [
+
+    {
+      "id": 1,
+      "title": "Signal Rate — Volatile Pairs (SOL/DOGE/XRP)",
+      "description": "Rate of BUY/SELL/HOLD signals generated for volatile runtime pairs.",
+      "type": "timeseries",
+      "gridPos": { "x": 0, "y": 0, "w": 12, "h": 7 },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": { "lineWidth": 2, "fillOpacity": 8 }
+        }
+      },
+      "options": {
+        "tooltip": { "mode": "multi" },
+        "legend": { "displayMode": "list", "placement": "bottom" }
+      },
+      "targets": [
+        {
+          "expr": "increase(trading_signal_total{symbol=~\"SOL.*|DOGE.*|XRP.*\"}[30m])",
+          "legendFormat": "{{symbol}} {{signal}}"
+        }
+      ]
+    },
+
+    {
+      "id": 2,
+      "title": "Signal Rate — Main Pairs (BTC/ETH)",
+      "description": "Rate of BUY/SELL/HOLD signals generated for main runtime pairs.",
+      "type": "timeseries",
+      "gridPos": { "x": 12, "y": 0, "w": 12, "h": 7 },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": { "lineWidth": 2, "fillOpacity": 8 }
+        }
+      },
+      "options": {
+        "tooltip": { "mode": "multi" },
+        "legend": { "displayMode": "list", "placement": "bottom" }
+      },
+      "targets": [
+        {
+          "expr": "increase(trading_signal_total{symbol=~\"BTC.*|ETH.*\"}[30m])",
+          "legendFormat": "{{symbol}} {{signal}}"
+        }
+      ]
+    },
+
+    {
+      "id": 3,
+      "title": "Confidence Score Distribution — Volatile",
+      "description": "Histogram of trading confidence scores for volatile pairs. Higher spread = richer calibration data.",
+      "type": "timeseries",
+      "gridPos": { "x": 0, "y": 7, "w": 12, "h": 6 },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": { "lineWidth": 1, "fillOpacity": 20 }
+        }
+      },
+      "options": {
+        "tooltip": { "mode": "multi" },
+        "legend": { "displayMode": "list", "placement": "bottom" }
+      },
+      "targets": [
+        {
+          "expr": "trading_confidence_score_bucket{symbol=~\"SOL.*|DOGE.*|XRP.*\"}",
+          "legendFormat": "{{symbol}} le={{le}}"
+        }
+      ]
+    },
+
+    {
+      "id": 4,
+      "title": "Confidence Score Distribution — Main",
+      "description": "Histogram of trading confidence scores for main pairs.",
+      "type": "timeseries",
+      "gridPos": { "x": 12, "y": 7, "w": 12, "h": 6 },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": { "lineWidth": 1, "fillOpacity": 20 }
+        }
+      },
+      "options": {
+        "tooltip": { "mode": "multi" },
+        "legend": { "displayMode": "list", "placement": "bottom" }
+      },
+      "targets": [
+        {
+          "expr": "trading_confidence_score_bucket{symbol=~\"BTC.*|ETH.*\"}",
+          "legendFormat": "{{symbol}} le={{le}}"
+        }
+      ]
+    },
+
+    {
+      "id": 5,
+      "title": "Regime Distribution — Volatile Pairs",
+      "description": "Signal regime totals for volatile pairs. Regime diversity is the core hypothesis being validated.",
+      "type": "stat",
+      "gridPos": { "x": 0, "y": 13, "w": 12, "h": 5 },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "blue", "value": 0 }
+            ]
+          }
+        }
+      },
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"] },
+        "colorMode": "value",
+        "graphMode": "area",
+        "textMode": "value_and_name"
+      },
+      "targets": [
+        {
+          "expr": "trading_regime_total{symbol=~\"SOL.*|DOGE.*|XRP.*\"}",
+          "legendFormat": "{{symbol}} {{regime}}"
+        }
+      ]
+    },
+
+    {
+      "id": 6,
+      "title": "Regime Distribution — Main Pairs",
+      "description": "Signal regime totals for BTC/ETH pairs.",
+      "type": "stat",
+      "gridPos": { "x": 12, "y": 13, "w": 12, "h": 5 },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "blue", "value": 0 }
+            ]
+          }
+        }
+      },
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"] },
+        "colorMode": "value",
+        "graphMode": "area",
+        "textMode": "value_and_name"
+      },
+      "targets": [
+        {
+          "expr": "trading_regime_total{symbol=~\"BTC.*|ETH.*\"}",
+          "legendFormat": "{{symbol}} {{regime}}"
+        }
+      ]
+    },
+
+    {
+      "id": 7,
+      "title": "Dataset Integrity — Volatile Pairs Side-by-Side",
+      "description": "dataset_integrity_score for SOL, DOGE, XRP. All three should remain above 60 for hypothesis to be valid.",
+      "type": "gauge",
+      "gridPos": { "x": 0, "y": 18, "w": 12, "h": 5 },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "min": 0,
+          "max": 100,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red", "value": 0 },
+              { "color": "orange", "value": 40 },
+              { "color": "yellow", "value": 60 },
+              { "color": "green", "value": 80 }
+            ]
+          }
+        }
+      },
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"] },
+        "showThresholdLabels": true,
+        "showThresholdMarkers": true
+      },
+      "targets": [
+        {
+          "expr": "dataset_integrity_score{symbol=~\"SOL.*|DOGE.*|XRP.*\"}",
+          "legendFormat": "{{symbol}} {{timeframe}}"
+        }
+      ]
+    },
+
+    {
+      "id": 8,
+      "title": "Candle Coverage % Trend — Volatile vs Main",
+      "description": "Coverage percentage over time. Volatile pairs should track closely with main pairs during healthy operation.",
+      "type": "timeseries",
+      "gridPos": { "x": 12, "y": 18, "w": 12, "h": 5 },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "min": 0,
+          "max": 100,
+          "custom": { "lineWidth": 2, "fillOpacity": 5 }
+        }
+      },
+      "options": {
+        "tooltip": { "mode": "multi" },
+        "legend": { "displayMode": "list", "placement": "bottom" }
+      },
+      "targets": [
+        {
+          "expr": "candle_coverage_pct",
+          "legendFormat": "{{symbol}} {{timeframe}}"
+        }
+      ]
+    }
+  ]
+}
