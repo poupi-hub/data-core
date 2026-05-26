@@ -288,3 +288,98 @@ psql -U data_core_user -d data_core_db -c \
 # 7. Check Prometheus metrics directly
 curl -s http://data-core-api:8000/metrics | grep pipeline_stage
 ```
+
+---
+
+## Dataset Quality Metrics (added 2026-05-26)
+
+These metrics track the health of the OHLCV candle dataset per symbol/timeframe.
+Emitted by `DatasetIntegrityScorer` every 30 minutes via `dataset_quality_crypto_job`.
+
+### Metric Reference
+
+| Metric | Type | Labels | Description |
+|--------|------|--------|-------------|
+| `dataset_integrity_score` | Gauge | `symbol`, `timeframe` | Composite integrity score 0-100. Combines freshness (40 pts), coverage (40 pts), OHLC consistency (20 pts). |
+| `candle_coverage_pct` | Gauge | `symbol`, `timeframe` | Percentage of expected candles present in the last 24h (0-100). |
+| `stale_candle_total` | Counter | `symbol`, `timeframe` | Total detections of stale candle data (last candle older than 2× expected interval). |
+| `candle_gap_total` | Counter | `symbol`, `timeframe` | Total candle gaps detected (missing intervals in the last 24h). |
+
+### Score Interpretation
+
+| Score | Interpretation |
+|-------|---------------|
+| 80-100 | ✅ Healthy — full freshness + coverage + clean OHLC |
+| 60-79 | ⚠️ Degraded — some gaps or slight staleness |
+| 40-59 | ⚠️ Warning — significant gaps, possible collection delays |
+| < 40 | ❌ Critical — pipeline failure or exchange downtime |
+
+### Prometheus Queries
+
+```promql
+# Current integrity scores by pair
+dataset_integrity_score
+
+# Pairs below warning threshold
+dataset_integrity_score < 60
+
+# Coverage percentage for 1h candles
+candle_coverage_pct{timeframe="1h"}
+
+# Gap rate over last 2h
+increase(candle_gap_total[2h])
+
+# Stale detections in last hour
+increase(stale_candle_total[1h]) > 0
+```
+
+### Grafana Dashboards
+
+- **Dataset Quality — Crypto OHLCV** (uid: `dataset-quality-crypto`): Integrity scores, coverage %, stale/gap rates
+- **Volatile vs Main — Signal Comparison** (uid: `volatile-comparison`): Side-by-side SOL/DOGE/XRP vs BTC/ETH
+
+### Alert Rules
+
+Located in `prometheus/rules/dataset_quality_alerts.yml`:
+
+| Alert | Condition | Severity |
+|-------|-----------|----------|
+| `CryptoDatasetLowIntegrity` | `dataset_integrity_score < 50` for 15m | warning |
+| `CryptoDatasetCriticallyDegraded` | `dataset_integrity_score < 20` for 5m | critical |
+| `CryptoDatasetLowCoverage` | `candle_coverage_pct < 50` for 30m | warning |
+| `CryptoDatasetMissingCoverage` | `candle_coverage_pct < 10` for 15m | critical |
+| `CryptoDatasetGapSpike` | `increase(candle_gap_total[1h]) > 5` | warning |
+| `CryptoDatasetStaleData` | `increase(stale_candle_total[30m]) > 0` | warning |
+
+### REST API
+
+```bash
+# Signal outcomes (retrospective BUY/SELL evaluation)
+GET /api/v1/trading/validation/signal-outcomes?symbol=SOL/USDT&limit=100
+
+# Confidence calibration by decile
+GET /api/v1/trading/validation/calibration?symbol=SOL/USDT
+
+# Signal distribution drift detection
+GET /api/v1/trading/validation/signal-drift?symbol=SOL/USDT&window_hours=24
+
+# Manually trigger outcome evaluation
+POST /api/v1/trading/validation/run-outcome-tracker?limit=200
+```
+
+### Database Tables
+
+```sql
+-- Dataset quality scores (last 30 days)
+SELECT symbol, timeframe, integrity_score, coverage_pct, gap_count, evaluated_at
+FROM crypto_dataset_quality_scores
+WHERE evaluated_at > NOW() - INTERVAL '30 days'
+ORDER BY evaluated_at DESC, symbol;
+
+-- Signal outcomes (correctness by pair)
+SELECT symbol, signal, outcome_correct, AVG(price_change_pct) as avg_change
+FROM trading_signal_outcomes
+WHERE signal_at > NOW() - INTERVAL '14 days'
+GROUP BY symbol, signal, outcome_correct
+ORDER BY symbol, signal;
+```
