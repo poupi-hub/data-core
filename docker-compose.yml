@@ -1,7 +1,9 @@
 services:
   api:
-    image: data-core-api
-    build: .
+    image: data-core-api-light
+    build:
+      context: .
+      dockerfile: Dockerfile.api
     env_file:
       - path: .env.example
         required: true
@@ -24,14 +26,25 @@ services:
       - ./runtime-data:/app/runtime-data
     command: sh -c "alembic upgrade head && uvicorn app.main:create_app --factory --host 0.0.0.0 --port 8000"
     restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: ${LOG_MAX_SIZE:-10m}
+        max-file: ${LOG_MAX_FILE:-5}
     healthcheck:
       test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8000/health', timeout=5).read()\""]
       interval: 10s
       timeout: 5s
       retries: 10
+    networks:
+      default: {}
+      poupi-monitoring:
+        aliases:
+          - data-core-api
 
   scheduler:
     image: data-core-api
+    build: .
     env_file:
       - path: .env.example
         required: true
@@ -55,9 +68,20 @@ services:
       - ./runtime-data:/app/runtime-data
     command: sh -c "python -m app.jobs.scheduler_runner"
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import json,time,pathlib; p=pathlib.Path('/app/runtime-data/scheduler_watchdog_snapshot.json'); d=json.loads(p.read_text()); assert time.time()-float(d.get('timestamp_epoch',0)) < 120\""]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+    logging:
+      driver: json-file
+      options:
+        max-size: ${LOG_MAX_SIZE:-10m}
+        max-file: ${LOG_MAX_FILE:-5}
 
   worker:
     image: data-core-api
+    build: .
     env_file:
       - path: .env.example
         required: true
@@ -79,6 +103,16 @@ services:
       - ./runtime-data:/app/runtime-data
     command: sh -c "python -m app.jobs.worker --interval $${WORKER_PIPELINE_INTERVAL_SECONDS}"
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import json,time,pathlib; p=pathlib.Path('/app/runtime-data/worker_heartbeat.json'); d=json.loads(p.read_text()); assert time.time()-float(d.get('timestamp_epoch',0)) < 700\""]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+    logging:
+      driver: json-file
+      options:
+        max-size: ${LOG_MAX_SIZE:-10m}
+        max-file: ${LOG_MAX_FILE:-5}
 
   tests:
     image: data-core-api
@@ -108,6 +142,11 @@ services:
     volumes:
       - postgres-data:/var/lib/postgresql/data
     restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: ${LOG_MAX_SIZE:-10m}
+        max-file: ${LOG_MAX_FILE:-5}
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U data_core -d data_core"]
       interval: 5s
@@ -119,6 +158,11 @@ services:
     ports:
       - "6380:6379"
     restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: ${LOG_MAX_SIZE:-10m}
+        max-file: ${LOG_MAX_FILE:-5}
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 5s
@@ -127,6 +171,7 @@ services:
 
   prometheus:
     image: prom/prometheus:v2.52.0
+    profiles: [monitoring, full-stack]
     ports:
       - "9090:9090"
     volumes:
@@ -139,12 +184,18 @@ services:
       - api
       - alertmanager
     restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: ${LOG_MAX_SIZE:-10m}
+        max-file: ${LOG_MAX_FILE:-5}
     networks:
       - default
       - poupi-monitoring
 
   alertmanager:
     image: prom/alertmanager:v0.27.0
+    profiles: [monitoring, full-stack]
     ports:
       - "9093:9093"
     volumes:
@@ -153,9 +204,15 @@ services:
       - "--config.file=/etc/alertmanager/alertmanager.yml"
       - "--storage.path=/alertmanager"
     restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: ${LOG_MAX_SIZE:-10m}
+        max-file: ${LOG_MAX_FILE:-5}
 
   grafana:
     image: grafana/grafana:10.4.3
+    profiles: [monitoring, full-stack]
     ports:
       - "3000:3000"
     environment:
@@ -168,6 +225,11 @@ services:
     depends_on:
       - prometheus
     restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: ${LOG_MAX_SIZE:-10m}
+        max-file: ${LOG_MAX_FILE:-5}
 
 volumes:
   postgres-data:

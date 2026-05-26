@@ -21,6 +21,7 @@ class Settings(BaseSettings):
     scheduler_enabled: bool = True
     scheduler_collectors_enabled: bool = True
     scheduler_pipeline_enabled: bool = True
+    scheduler_pipeline_module: str | None = None
     scheduler_domain_jobs_enabled: bool = True
     scheduler_timezone: str = "America/Sao_Paulo"
     worker_concurrency: int = 2
@@ -56,6 +57,18 @@ class Settings(BaseSettings):
     watchdog_quality_score_threshold: int = 50     # alert if avg quality below this
     watchdog_anti_bot_hourly_threshold: int = 3    # alert if anti-bot rate > N/h
     watchdog_enabled: bool = True
+
+    # Scheduler reliability protection layer. Defaults are observe-only.
+    scheduler_reliability_enabled: bool = False
+    scheduler_reliability_dry_run: bool = True
+    scheduler_reliability_base_batch_size: int = 100
+    scheduler_reliability_conservative_batch_size: int = 75
+    scheduler_reliability_protective_batch_size: int = 50
+    scheduler_reliability_critical_batch_size: int = 25
+    scheduler_reliability_conservative_cooldown_seconds: float = 2.0
+    scheduler_reliability_protective_cooldown_seconds: float = 5.0
+    scheduler_reliability_critical_cooldown_seconds: float = 10.0
+    scheduler_reliability_low_priority_extra_delay_seconds: float = 10.0
 
     # poupi-baby URL (used by watchdog to optionally query poupi-baby health)
     poupi_baby_url: str = ""
