@@ -505,14 +505,17 @@ def ensure_default_collection_targets() -> int:
                 )
                 .one_or_none()
             )
+            item_active = item.get("active", True)
             if exact is None:
                 db.add(CollectionTarget(**item))
                 created += 1
-            elif not exact.active and item.get("active", True):
+            elif not exact.active and item_active:
                 # Only re-enable if the seed record itself is active.
-                # active=False in DEFAULT_COLLECTION_TARGETS means permanently blocked
-                # (e.g. HTTP 403 providers) — do not override the manual deactivation.
                 exact.active = True
+            elif exact.active and not item_active:
+                # Enforce permanent deactivation for blocked providers
+                # (active=False in DEFAULT_COLLECTION_TARGETS = HTTP 403 / no bypass).
+                exact.active = False
 
             # Deactivate any other collector pointing at the same URL
             # (e.g. old poupi_legacy_raw_collector targets from before Phase B)
