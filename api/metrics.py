@@ -1353,3 +1353,101 @@ def _wire_reliability_metrics() -> None:
 
 
 _wire_reliability_metrics()
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Outcome pipeline — signal retrospective evaluation observability
+# Populated by SignalOutcomeTracker (signal_outcomes_job, every 60 min) and
+# OutcomePipelineHealthService (dataset_quality_crypto_job, every 30 min).
+#
+# Cardinality budget per metric:
+#   [symbol, timeframe, signal, outcome] → 7×2×2×3 = 84 max
+#   [symbol, timeframe, signal]          → 7×2×2  = 28 max
+#   [symbol, timeframe]                  → 7×2    = 14 max
+#   []                                   → 1
+# ──────────────────────────────────────────────────────────────────────────────
+
+# ── Counters ──────────────────────────────────────────────────────────────────
+
+outcome_evaluated_total = Counter(
+    "outcome_evaluated_total",
+    "Total signal outcomes written to trading_signal_outcomes. "
+    "outcome label: correct | incorrect | inconclusive.",
+    ["symbol", "timeframe", "signal", "outcome"],
+)
+
+outcome_skipped_total = Counter(
+    "outcome_skipped_total",
+    "Total signals skipped because their evaluation horizon has not yet closed.",
+    ["symbol", "timeframe"],
+)
+
+outcome_future_candles_missing_total = Counter(
+    "outcome_future_candles_missing_total",
+    "Total signals dropped because no subsequent candles were found in the DB.",
+    ["symbol", "timeframe"],
+)
+
+outcome_eval_error_total = Counter(
+    "outcome_eval_error_total",
+    "Exceptions thrown during individual signal outcome evaluation.",
+    ["symbol", "timeframe"],
+)
+
+# ── Gauges ────────────────────────────────────────────────────────────────────
+
+outcome_pending_total = Gauge(
+    "outcome_pending_total",
+    "Current number of BUY/SELL signals with a closed horizon awaiting evaluation.",
+    ["symbol", "timeframe"],
+)
+
+outcome_accuracy_ratio = Gauge(
+    "outcome_accuracy_ratio",
+    "Rolling accuracy ratio (correct / total evaluated) over the last 7 days. "
+    "0.0 when no outcomes exist.",
+    ["symbol", "timeframe", "signal"],
+)
+
+outcome_avg_mfe_pct = Gauge(
+    "outcome_avg_mfe_pct",
+    "Average max favorable excursion (MFE) in percent across evaluated outcomes (last 7 days).",
+    ["symbol", "timeframe"],
+)
+
+outcome_avg_mae_pct = Gauge(
+    "outcome_avg_mae_pct",
+    "Average max adverse excursion (MAE, positive number) across evaluated outcomes (last 7 days).",
+    ["symbol", "timeframe"],
+)
+
+outcome_runtime_lag_seconds = Gauge(
+    "outcome_runtime_lag_seconds",
+    "Seconds since the oldest pending BUY/SELL signal's horizon closed. "
+    "Measures how far behind the outcome tracker is. 0 when no pending signals exist.",
+)
+
+outcome_bootstrap_phase = Gauge(
+    "outcome_bootstrap_phase",
+    "1.0 while the outcome pipeline is in bootstrap phase (evaluated outcomes < threshold). "
+    "Used to suppress alert storm during the first days of a new runtime.",
+)
+
+outcome_pipeline_health_score = Gauge(
+    "outcome_pipeline_health_score",
+    "Composite outcome pipeline health score 0–100. "
+    "Computed by OutcomePipelineHealthService every 30 min.",
+)
+
+dataset_maturity_score = Gauge(
+    "dataset_maturity_score",
+    "Dataset maturity score 0–100. "
+    "0–20 bootstrap · 20–50 immature · 50–75 statistically useful · 75–100 calibration-ready.",
+)
+
+# ── Histogram ─────────────────────────────────────────────────────────────────
+
+outcome_eval_duration_seconds = Histogram(
+    "outcome_eval_duration_seconds",
+    "Wall-clock duration of a full SignalOutcomeTracker.run() call in seconds.",
+    buckets=[0.1, 0.5, 1.0, 2.0, 5.0, 10.0, 30.0, 60.0, 120.0],
+)

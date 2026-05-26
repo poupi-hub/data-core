@@ -1320,12 +1320,22 @@ def dataset_quality_crypto_job() -> None:
     Runs every 30 minutes.  For each (symbol, timeframe) combination found in
     ``normalized_market_candles``, computes a 0-100 integrity score, persists it to
     ``crypto_dataset_quality_scores``, and updates Prometheus metrics:
-      - dataset_integrity_score [symbol, timeframe]
-      - candle_coverage_pct     [symbol, timeframe]
-      - stale_candle_total      [symbol, timeframe]
-      - candle_gap_total        [symbol, timeframe]
+      - dataset_integrity_score    [symbol, timeframe]
+      - candle_coverage_pct        [symbol, timeframe]
+      - stale_candle_total         [symbol, timeframe]
+      - candle_gap_total           [symbol, timeframe]
+      - outcome_pipeline_health_score []
+      - outcome_bootstrap_phase       []
+      - outcome_pending_total      [symbol, timeframe]
+      - outcome_accuracy_ratio     [symbol, timeframe, signal]
+      - outcome_avg_mfe_pct        [symbol, timeframe]
+      - outcome_avg_mae_pct        [symbol, timeframe]
+      - outcome_runtime_lag_seconds   []
+      - dataset_maturity_score        []
     """
     from app.data_quality.crypto.integrity import DatasetIntegrityScorer
+    from app.modules.trading.validation.dataset_maturity import DatasetMaturityService
+    from app.modules.trading.validation.pipeline_health import OutcomePipelineHealthService
     from app.normalization.models import NormalizedMarketCandle
 
     run_id = str(uuid.uuid4())
@@ -1334,7 +1344,6 @@ def dataset_quality_crypto_job() -> None:
         "Job run started",
         extra={"run_id": run_id, "job": "dataset_quality_crypto_job", "domain": "trading", "source": "data_quality"},
     )
-    error: Exception | None = None
     score_count = 0
     try:
         db = SessionLocal()
@@ -1362,10 +1371,32 @@ def dataset_quality_crypto_job() -> None:
             scorer = DatasetIntegrityScorer(db)
             scores = scorer.score(symbols, timeframes, persist=True, emit_metrics=True)
             score_count = len(scores)
+
+            # Outcome pipeline health + maturity (non-fatal; metrics only)
+            try:
+                health_report = OutcomePipelineHealthService(db).check()
+                maturity_report = DatasetMaturityService(db).assess()
+                logger.info(
+                    "Outcome pipeline health assessed",
+                    extra={
+                        "health_score": health_report.health_score,
+                        "severity": health_report.severity,
+                        "bootstrap_mode": health_report.bootstrap_mode,
+                        "pending_count": health_report.pending_count,
+                        "stuck_count": health_report.stuck_count,
+                        "maturity_score": maturity_report.maturity_score,
+                        "maturity_band": maturity_report.band,
+                        "issues": health_report.issues,
+                    },
+                )
+            except Exception as health_exc:
+                logger.warning(
+                    "Outcome pipeline health check failed (non-fatal)",
+                    extra={"error": str(health_exc)},
+                )
         finally:
             db.close()
     except Exception as exc:
-        error = exc
         logger.error(
             "Job run finished",
             extra={

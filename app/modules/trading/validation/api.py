@@ -18,8 +18,10 @@ from sqlalchemy.orm import Session
 
 from api.deps import db_session
 from app.modules.trading.validation.confidence_calibration import compute_calibration
+from app.modules.trading.validation.dataset_maturity import DatasetMaturityService
 from app.modules.trading.validation.models import TradingSignalOutcome
 from app.modules.trading.validation.outcome_tracker import SignalOutcomeTracker
+from app.modules.trading.validation.pipeline_health import OutcomePipelineHealthService
 from app.modules.trading.validation.signal_drift import compute_signal_drift
 
 router = APIRouter(
@@ -156,3 +158,66 @@ def run_outcome_tracker(
     tracker = SignalOutcomeTracker(db)
     result = tracker.run(limit=limit)
     return result
+
+
+@router.get("/health")
+def get_pipeline_health(db: Session = Depends(db_session)) -> dict[str, Any]:
+    """Outcome pipeline health check.
+
+    Runs ``OutcomePipelineHealthService`` and returns the composite health score
+    (0–100), severity (INFO / WARNING / CRITICAL), bootstrap flag, pending count,
+    and any detected issues.
+
+    Suitable for liveness probes, CI gates, and Grafana stat panels.
+    """
+    report = OutcomePipelineHealthService(db).check()
+    return {
+        "health_score": report.health_score,
+        "severity": report.severity,
+        "bootstrap_mode": report.bootstrap_mode,
+        "total_outcomes": report.total_outcomes,
+        "last_evaluated_at": (
+            report.last_evaluated_at.isoformat() if report.last_evaluated_at else None
+        ),
+        "seconds_since_last_evaluation": report.seconds_since_last_evaluation,
+        "pending_count": report.pending_count,
+        "stuck_count": report.stuck_count,
+        "issues": report.issues,
+        "components": report.components,
+    }
+
+
+@router.get("/readiness")
+def get_readiness(db: Session = Depends(db_session)) -> dict[str, Any]:
+    """Quant validation readiness assessment.
+
+    Returns whether the accumulated dataset is ready for:
+      - ``calibration_ready`` : confidence calibration analysis (≥50 evaluated outcomes,
+        ≥10 non-HOLD, ≥3 regimes, ≥3 symbols)
+      - ``drift_ready``       : signal drift baseline (≥100 outcomes)
+      - ``replay_ready``      : minimal replay feasibility (≥10 non-HOLD outcomes)
+      - ``maturity_band``     : BOOTSTRAP | IMMATURE | USEFUL | CALIBRATION_READY
+
+    Use this endpoint to determine when it is safe to act on calibration and drift
+    reports (premature reads during bootstrap phase produce meaningless results).
+    """
+    maturity = DatasetMaturityService(db).assess()
+    health = OutcomePipelineHealthService(db).check()
+    return {
+        "calibration_ready": maturity.calibration_ready,
+        "drift_ready": maturity.drift_ready,
+        "replay_ready": maturity.replay_ready,
+        "maturity_score": maturity.maturity_score,
+        "maturity_band": maturity.band,
+        "bootstrap_mode": health.bootstrap_mode,
+        "pipeline_health_score": health.health_score,
+        "pipeline_severity": health.severity,
+        "dataset": {
+            "total_outcomes": maturity.total_outcomes,
+            "non_hold_outcomes": maturity.non_hold_outcomes,
+            "distinct_regimes": maturity.distinct_regimes,
+            "distinct_symbols": maturity.distinct_symbols,
+            "confidence_spread": maturity.confidence_spread,
+        },
+        "thresholds": maturity.components.get("thresholds", {}),
+    }

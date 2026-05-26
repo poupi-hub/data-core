@@ -16,12 +16,15 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Any
 
+from decimal import Decimal
+
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.data_quality.crypto.coverage import CandleCoverageAnalyzer, CoverageResult
 from app.data_quality.crypto.freshness import CandleFreshnessValidator, FreshnessResult
 from app.data_quality.crypto.models import CryptoDatasetQualityScore
-from app.data_quality.services import DataQualityService
+from app.normalization.models import NormalizedMarketCandle
 
 logger = logging.getLogger(__name__)
 
@@ -115,8 +118,11 @@ class DatasetIntegrityScorer:
             for r in self._coverage.analyze(symbols, timeframes)
         }
 
-        # OHLC consistency from the existing DataQualityService ("trading" module)
-        ohlc_quality = self._get_ohlc_score()
+        # OHLC consistency — computed per-symbol so scores are independent.
+        # Cache per symbol to avoid N² queries when multiple timeframes exist.
+        ohlc_by_symbol: dict[str, float] = {
+            sym: self._get_ohlc_score(sym) for sym in symbols
+        }
 
         scores: list[IntegrityScore] = []
         for symbol in symbols:
@@ -124,6 +130,7 @@ class DatasetIntegrityScorer:
                 key = (symbol, timeframe)
                 freshness = freshness_results.get(key)
                 coverage = coverage_results.get(key)
+                ohlc_quality = ohlc_by_symbol[symbol]
                 integrity = self._compute_score(symbol, timeframe, freshness, coverage, ohlc_quality)
                 scores.append(integrity)
 
@@ -143,18 +150,54 @@ class DatasetIntegrityScorer:
 
     # ── Private helpers ────────────────────────────────────────────────────────
 
-    def _get_ohlc_score(self) -> float:
-        """Return OHLC pass rate (0.0-1.0) from DataQualityService for the trading module."""
+    def _get_ohlc_score(self, symbol: str, limit: int = 200) -> float:
+        """Return per-symbol OHLC consistency pass rate (0.0–1.0).
+
+        Directly queries ``normalized_market_candles`` filtered by symbol to
+        avoid sharing one global score across all symbols.  Checks:
+          - high >= low
+          - close in [low, high]
+          - open in [low, high]
+          - all OHLC values > 0
+        """
         try:
-            result = DataQualityService(self.db).run(module="trading", limit=500)
-            runs = result.get("runs", [])
-            if runs:
-                qs = runs[0].get("quality_score")
-                if qs is not None:
-                    return float(qs)
+            window_start = datetime.now(tz=timezone.utc) - timedelta(hours=48)
+            candles = (
+                self.db.query(NormalizedMarketCandle)
+                .filter(
+                    NormalizedMarketCandle.symbol == symbol,
+                    NormalizedMarketCandle.timestamp >= window_start,
+                    NormalizedMarketCandle.open.isnot(None),
+                    NormalizedMarketCandle.high.isnot(None),
+                    NormalizedMarketCandle.low.isnot(None),
+                    NormalizedMarketCandle.close.isnot(None),
+                )
+                .order_by(NormalizedMarketCandle.timestamp.desc())
+                .limit(limit)
+                .all()
+            )
+            if not candles:
+                return 1.0  # no data — assume perfect
+
+            passed = sum(1 for c in candles if self._ohlc_valid(c))
+            return round(passed / len(candles), 4)
         except Exception as exc:
-            logger.debug("OHLC quality check failed (non-fatal): %s", exc)
-        return 1.0  # assume perfect if check unavailable
+            logger.debug("Per-symbol OHLC check failed (non-fatal): %s", exc)
+            return 1.0
+
+    @staticmethod
+    def _ohlc_valid(c: NormalizedMarketCandle) -> bool:
+        """Return True when a candle passes all basic OHLC consistency rules."""
+        try:
+            o, h, l, cl = float(c.open), float(c.high), float(c.low), float(c.close)
+            return (
+                o > 0 and h > 0 and l > 0 and cl > 0
+                and h >= l
+                and h >= cl >= l
+                and h >= o >= l
+            )
+        except (TypeError, ValueError):
+            return False
 
     def _compute_score(
         self,

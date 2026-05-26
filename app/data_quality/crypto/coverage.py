@@ -59,15 +59,25 @@ class CandleCoverageAnalyzer:
         self,
         symbols: list[str],
         timeframes: list[str],
+        *,
+        source: str | None = None,
     ) -> list[CoverageResult]:
-        """Return CoverageResult for every (symbol, timeframe) pair."""
+        """Return CoverageResult for every (symbol, timeframe) pair.
+
+        Args:
+            symbols: Trading pair symbols to analyze.
+            timeframes: Timeframe strings to analyze.
+            source: When provided, restrict to candles from this source only.
+                    Default (None) aggregates across all sources — preserves
+                    existing behaviour for the default scheduler job.
+        """
         results: list[CoverageResult] = []
         now = datetime.now(tz=timezone.utc)
         window_start = now - timedelta(hours=24)
 
         for symbol in symbols:
             for timeframe in timeframes:
-                result = self._analyze_one(symbol, timeframe, window_start)
+                result = self._analyze_one(symbol, timeframe, window_start, source=source)
                 results.append(result)
 
         return results
@@ -77,16 +87,21 @@ class CandleCoverageAnalyzer:
         symbol: str,
         timeframe: str,
         window_start: datetime,
+        *,
+        source: str | None = None,
     ) -> CoverageResult:
         expected = _EXPECTED_24H.get(timeframe, 24)
 
+        base_filter = [
+            NormalizedMarketCandle.symbol == symbol,
+            NormalizedMarketCandle.timeframe == timeframe,
+        ]
+        if source is not None:
+            base_filter.append(NormalizedMarketCandle.source == source)
+
         candles_24h: int = (
             self.db.query(func.count(NormalizedMarketCandle.id))
-            .filter(
-                NormalizedMarketCandle.symbol == symbol,
-                NormalizedMarketCandle.timeframe == timeframe,
-                NormalizedMarketCandle.timestamp >= window_start,
-            )
+            .filter(*base_filter, NormalizedMarketCandle.timestamp >= window_start)
             .scalar()
             or 0
         )
@@ -95,21 +110,17 @@ class CandleCoverageAnalyzer:
 
         oldest_ts: datetime | None = (
             self.db.query(func.min(NormalizedMarketCandle.timestamp))
-            .filter(
-                NormalizedMarketCandle.symbol == symbol,
-                NormalizedMarketCandle.timeframe == timeframe,
-            )
+            .filter(*base_filter)
             .scalar()
         )
         if oldest_ts is not None and oldest_ts.tzinfo is None:
             oldest_ts = oldest_ts.replace(tzinfo=timezone.utc)
 
+        # Use COUNT with an index-friendly LIMIT hint — avoids full table scan
+        # by reusing the same base_filter (indexed on symbol + timeframe).
         total_candles: int = (
             self.db.query(func.count(NormalizedMarketCandle.id))
-            .filter(
-                NormalizedMarketCandle.symbol == symbol,
-                NormalizedMarketCandle.timeframe == timeframe,
-            )
+            .filter(*base_filter)
             .scalar()
             or 0
         )

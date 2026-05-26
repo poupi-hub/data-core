@@ -72,15 +72,25 @@ class CandleFreshnessValidator:
         self,
         symbols: list[str],
         timeframes: list[str],
+        *,
+        source: str | None = None,
     ) -> list[FreshnessResult]:
-        """Return a FreshnessResult for every (symbol, timeframe) combination."""
+        """Return a FreshnessResult for every (symbol, timeframe) combination.
+
+        Args:
+            symbols: Trading pair symbols to check.
+            timeframes: Timeframe strings to check.
+            source: When provided, restrict to candles from this source only.
+                    Default (None) aggregates across all sources — preserves
+                    existing behaviour for the default scheduler job.
+        """
         results: list[FreshnessResult] = []
         now = datetime.now(tz=timezone.utc)
 
         for symbol in symbols:
             for timeframe in timeframes:
                 interval_hours = _TIMEFRAME_HOURS.get(timeframe, 1.0)
-                result = self._check_one(symbol, timeframe, interval_hours, now)
+                result = self._check_one(symbol, timeframe, interval_hours, now, source=source)
                 results.append(result)
 
         return results
@@ -91,16 +101,22 @@ class CandleFreshnessValidator:
         timeframe: str,
         interval_hours: float,
         now: datetime,
+        *,
+        source: str | None = None,
     ) -> FreshnessResult:
         window_start = now - timedelta(hours=_GAP_ANALYSIS_WINDOW_HOURS)
+
+        base_filter = [
+            NormalizedMarketCandle.symbol == symbol,
+            NormalizedMarketCandle.timeframe == timeframe,
+        ]
+        if source is not None:
+            base_filter.append(NormalizedMarketCandle.source == source)
 
         # Most recent candle
         last_ts: datetime | None = (
             self.db.query(func.max(NormalizedMarketCandle.timestamp))
-            .filter(
-                NormalizedMarketCandle.symbol == symbol,
-                NormalizedMarketCandle.timeframe == timeframe,
-            )
+            .filter(*base_filter)
             .scalar()
         )
 
@@ -126,11 +142,7 @@ class CandleFreshnessValidator:
         # Count candles in the 24h window for gap analysis
         candles_in_window: int = (
             self.db.query(func.count(NormalizedMarketCandle.id))
-            .filter(
-                NormalizedMarketCandle.symbol == symbol,
-                NormalizedMarketCandle.timeframe == timeframe,
-                NormalizedMarketCandle.timestamp >= window_start,
-            )
+            .filter(*base_filter, NormalizedMarketCandle.timestamp >= window_start)
             .scalar()
             or 0
         )
