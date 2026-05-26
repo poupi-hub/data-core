@@ -7,6 +7,7 @@ from app.analytics.services import BaseAnalyticsProcessor
 from app.normalization.models import NormalizedMarketCandle
 from domains.crypto_coin.indicators.technical import compute_indicators
 from domains.crypto_coin.strategies.trend_following.strategy import get_signal
+from api.metrics import trading_signal_total, trading_regime_total, trading_confidence_histogram
 
 
 class TradingAnalyticsProcessor(BaseAnalyticsProcessor):
@@ -68,6 +69,18 @@ class TradingAnalyticsProcessor(BaseAnalyticsProcessor):
             )
         )
         self.db.flush()
+
+        # Prometheus observability — wired here (post-flush) so metrics only fire on persisted records
+        symbol = analytics.get("symbol") or normalized.symbol or "unknown"
+        timeframe = analytics.get("timeframe") or normalized.timeframe or "unknown"
+        signal = analytics.get("signal") or "HOLD"
+        regime = analytics.get("regime") or "UNKNOWN"
+        confidence = analytics.get("confidence") or 0
+
+        trading_signal_total.labels(symbol=symbol, timeframe=timeframe, signal=signal).inc()
+        trading_regime_total.labels(symbol=symbol, timeframe=timeframe, regime=regime).inc()
+        trading_confidence_histogram.labels(symbol=symbol, timeframe=timeframe).observe(confidence)
+
         return 1
 
 
