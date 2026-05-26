@@ -1,0 +1,180 @@
+# Server Operations Runbook
+
+Server alias: `poupi`.
+
+This runbook is for read-only or reversible platform operations unless explicitly stated otherwise.
+
+## Golden Rules
+
+- Do not delete volumes before a verified backup and restore test.
+- Do not expose databases publicly.
+- Do not change trading, scraping, quantitative, threshold, or business logic from ops tasks.
+- Do not print real secrets in terminal output, docs, tickets, or logs.
+
+## Inventory
+
+```bash
+ssh poupi "docker ps --format 'table {{.Names}}\t{{.Image}}\t{{.Status}}\t{{.Ports}}'"
+ssh poupi "docker volume ls"
+ssh poupi "docker network ls"
+ssh poupi "ss -tulpn"
+ssh poupi "find /opt/apps /opt/infra -maxdepth 3 -name 'docker-compose*.yml' -o -name '.env.example'"
+```
+
+## Health Checks
+
+```bash
+ssh poupi "docker ps --filter health=unhealthy --format '{{.Names}}'"
+ssh poupi "docker exec multi_project_infra-postgres-1 pg_isready -U postgres"
+ssh poupi "docker exec poupi-crypto-db-1 pg_isready -U postgres"
+ssh poupi "docker exec multi_project_infra-redis-1 redis-cli ping || true"
+ssh poupi "docker exec prometheus wget -qO- http://127.0.0.1:9090/-/healthy"
+ssh poupi "curl -fsS http://127.0.0.1:9093/-/healthy"
+```
+
+Backup automation:
+
+```bash
+ssh poupi "systemctl list-timers 'poupi-*'"
+ssh poupi "systemctl status poupi-backup.service --no-pager -l"
+ssh poupi "systemctl status poupi-restore-test.service --no-pager -l"
+ssh poupi "ls -lh /opt/backups/logs | tail"
+```
+
+If Redis requires auth, a `NOAUTH Authentication required` response proves the service is reachable but the check must be run with the server-side secret.
+
+## Logs
+
+```bash
+ssh poupi "docker logs --tail 200 api-dvq6dwsagsw4p4oqwuw7bak9-075259609103"
+ssh poupi "docker logs --tail 200 poupi-crypto-api-1"
+ssh poupi "docker logs --tail 200 prometheus"
+```
+
+Prefer logs by Compose service when operating from `/opt/apps/<service>`:
+
+```bash
+ssh poupi "cd /opt/apps/poupi-crypto && docker compose logs --tail=200 api"
+```
+
+## Public Surface Audit
+
+Expected public ports after hardening:
+
+```text
+22/tcp
+80/tcp
+443/tcp
+```
+
+Any other public listener must be explicitly justified.
+
+Audit:
+
+```bash
+ssh poupi "ss -tulpn | awk 'NR==1 || /LISTEN/'"
+```
+
+Known current exceptions requiring review:
+
+```text
+5435/tcp Postgres
+9090/tcp Prometheus
+8080/tcp Traefik dashboard
+8000/tcp Coolify
+6001-6002/tcp Coolify realtime
+8002-8003/tcp manual crypto APIs
+```
+
+Current mitigation applied:
+
+```text
+iptables/ip6tables INPUT drops for 5435, 9090, 8080, 6001, 6002
+iptables/ip6tables DOCKER-USER drops for Docker-published access to 5435, 9090, 8080, 6001, 6002
+rules persisted via /etc/iptables/rules.v4 and /etc/iptables/rules.v6
+snapshots stored in /opt/backups/firewall
+```
+
+Source hardening completed:
+
+```text
+poupi-crypto-db-1 no longer publishes 5435 on the host
+prometheus no longer publishes 9090 on the host
+coolify-proxy no longer publishes 8080 on the host
+coolify direct admin port is restricted to 127.0.0.1:8000
+coolify-realtime no longer publishes 6001/6002 on the host
+manual poupi-crypto-api and poupi-crypto-volatile no longer publish 8002/8003 on the host
+```
+
+Expected public listeners:
+
+```text
+22/tcp
+80/tcp
+443/tcp
+```
+
+Coolify-managed `poupi-crypto` should be reached through Traefik. Current validated route:
+
+```text
+https://k8vtxrdgc8gth1ul1sxy02zt.65.109.239.250.sslip.io/health -> 200 {"status":"ok"}
+```
+
+Traefik may still log ACME failures for `coolify.poupi.com`; that DNS name currently has no valid A/AAAA records and should either be fixed or removed from the Coolify proxy dynamic config.
+
+Prometheus target notes:
+
+```text
+poupi-baby-worker target was removed on 2026-05-26 because no running worker container or monitoring alias existed.
+Re-enable only after the worker is deployed and attached to poupi-monitoring as poupi-baby-worker:3002.
+```
+
+poupi-baby worker decision:
+
+```text
+Do not start /opt/apps/poupi-baby docker-compose worker as production.
+That Compose stack uses its own postgres/redis services and would not share the current Coolify production DB/Redis.
+If worker processing is required, create a separate Coolify-managed worker app using the same DATABASE_URL and REDIS_URL as the production backend, then expose /healthz and /metrics on the monitoring network.
+```
+
+Validate externally after any reboot or Docker/Coolify network change:
+
+```powershell
+Test-NetConnection -ComputerName <server-ip> -Port 5435 -InformationLevel Quiet
+Test-NetConnection -ComputerName <server-ip> -Port 9090 -InformationLevel Quiet
+Test-NetConnection -ComputerName <server-ip> -Port 8080 -InformationLevel Quiet
+Test-NetConnection -ComputerName <server-ip> -Port 6001 -InformationLevel Quiet
+Test-NetConnection -ComputerName <server-ip> -Port 6002 -InformationLevel Quiet
+```
+
+Expected result: all `False`.
+
+Rollback firewall mitigation if absolutely necessary:
+
+```bash
+ssh poupi "sudo iptables-restore < /opt/backups/firewall/iptables-before-20260526T112615Z.rules"
+ssh poupi "sudo ip6tables-restore < /opt/backups/firewall/ip6tables-before-20260526T112615Z.rules"
+```
+
+## Safe Restart Pattern
+
+Use only after health status and logs are captured.
+
+```bash
+ssh poupi "cd /opt/apps/poupi-crypto && docker compose ps"
+ssh poupi "cd /opt/apps/poupi-crypto && docker compose restart api"
+ssh poupi "cd /opt/apps/poupi-crypto && docker compose ps"
+```
+
+For Coolify-managed applications, prefer Coolify deploy/restart controls instead of manual container replacement.
+
+## Server Directory Standard
+
+```text
+/opt/apps/<service>        app compose trees and app env files
+/opt/infra                 shared infra compose and project env examples
+/opt/backups               generated backup artifacts
+/opt/runbooks              copied operational runbooks
+/opt/scripts               operational scripts
+/opt/monitoring            Prometheus/Grafana/Alertmanager config
+```
