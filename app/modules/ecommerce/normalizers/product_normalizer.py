@@ -27,7 +27,14 @@ class EcommerceProductNormalizer(BaseNormalizer):
         raw_success = raw.raw_json.get("success") if isinstance(raw.raw_json, dict) else None
         payload_success = payload.get("success")
         if raw_success is False or payload_success is False:
-            error = payload.get("error") or raw.raw_json.get("error") or "unknown_error"
+            error = (
+                payload.get("error")
+                or raw.raw_json.get("error")
+                or payload.get("error_message")
+                or raw.raw_json.get("error_message")
+                or "unknown_error"
+            )
+            error = _classify_error(error)
             raw.error_message = f"ignored_by_normalizer: payload success=false: {error}"
             return None
         title = _clean_text(
@@ -182,3 +189,21 @@ def _availability_text(payload: dict[str, Any]) -> str | None:
         if key in payload:
             return "in_stock" if payload.get(key) else "out_of_stock"
     return None
+
+
+def _classify_error(error: object) -> str:
+    text = str(error or "").strip()
+    normalized = text.lower()
+    if "403 forbidden" in normalized or "status/403" in normalized:
+        return "HTTP_403_FORBIDDEN"
+    if "429" in normalized or "too many requests" in normalized:
+        return "HTTP_429_RATE_LIMIT"
+    if "timeout" in normalized or "timed out" in normalized:
+        return "TIMEOUT"
+    if normalized.startswith("anti_bot:") or "captcha" in normalized or "cloudflare" in normalized:
+        return text
+    if "could not extract product data" in normalized:
+        return "PARSE_FAILURE"
+    if "selector" in normalized:
+        return "SELECTOR_FAILURE"
+    return text or "unknown_error"

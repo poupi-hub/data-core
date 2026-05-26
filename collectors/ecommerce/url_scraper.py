@@ -20,6 +20,7 @@ import json
 import logging
 import re
 import time
+from datetime import datetime, timezone
 from typing import Any
 from urllib.parse import urlparse
 
@@ -271,7 +272,12 @@ class EcommerceURLScraper:
 
         # All retries failed — return failure payload instead of raising
         logger.error("All scrape attempts failed", extra={"url": url, "error": str(last_exc)})
-        return {"success": False, "error_message": str(last_exc)}, last_anti_bot
+        error_message = str(last_exc)
+        return {
+            "success": False,
+            "error": _classify_error_message(error_message),
+            "error_message": error_message,
+        }, last_anti_bot
 
     async def _scrape_url(
         self, client: httpx.AsyncClient, url: str, source_name: str
@@ -468,8 +474,17 @@ class EcommerceURLScraper:
             "strategy": strategy,
             "anti_bot_detected": anti_bot_detected,
         }
+        if not product.get("success"):
+            metadata["error_type"] = _classify_error_message(
+                product.get("error") or product.get("error_message")
+            )
         if quality_dict is not None:
             metadata["quality"] = quality_dict
+
+        raw_payload = {
+            **product,
+            "collection_attempted_at": datetime.now(timezone.utc).isoformat(),
+        }
 
         try:
             saved = self._raw_service.save_json(
@@ -482,7 +497,7 @@ class EcommerceURLScraper:
                 raw_schema_version=self.raw_schema_version,
                 source_id=source_id,
                 target_url=target.target_url,
-                raw_json=product,
+                raw_json=raw_payload,
                 metadata=metadata,
             )
             was_new = getattr(saved, "_raw_was_created", True)
@@ -521,6 +536,24 @@ def _guess_store_name(url: str) -> str:
             return name
     # Fallback: first part of domain
     return host.split(".")[0]
+
+
+def _classify_error_message(error: Any) -> str:
+    text = str(error or "").strip()
+    normalized = text.lower()
+    if "403 forbidden" in normalized or "status/403" in normalized:
+        return "HTTP_403_FORBIDDEN"
+    if "429" in normalized or "too many requests" in normalized:
+        return "HTTP_429_RATE_LIMIT"
+    if "timeout" in normalized or "timed out" in normalized:
+        return "TIMEOUT"
+    if normalized.startswith("anti_bot:") or "captcha" in normalized or "cloudflare" in normalized:
+        return text
+    if "could not extract product data" in normalized:
+        return "PARSE_FAILURE"
+    if "selector" in normalized:
+        return "SELECTOR_FAILURE"
+    return text or "unknown_error"
 
 
 def _parse_ld_price(raw: Any) -> float | None:
