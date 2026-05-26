@@ -42,4 +42,4 @@ Current classification: PARTIAL.
 - Daily backup and weekly restore-test timers are active and validated; failure alerting to local Alertmanager is configured through systemd `OnFailure`.
 - Prometheus stale target `poupi-baby-worker` was removed; old Compose worker must not be started because it targets a separate local Compose DB/Redis. Production worker requires a Coolify-managed app with shared production env.
 - `poupi-frontend` and `poupi-brand` have no Git root detected locally.
-- Multiple frontend `localhost` fallbacks remain in source.
+- Multiple frontend `localhost` fallbacks remain in source; local `pnpm check:prod-env` guardrail now detects and blocks them.

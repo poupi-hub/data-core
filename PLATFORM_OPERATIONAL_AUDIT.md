@@ -139,6 +139,7 @@ Public edge should be Traefik on `80/443`. Administrative and data services shou
 - Backup and restore-test services now have systemd `OnFailure` hooks to local Alertmanager; handler script passed dry-run JSON validation and Alertmanager readiness returned `OK`.
 - `poupi-baby-worker` decision recorded: old Compose worker must not be started because it targets a separate local Compose database/Redis stack; create a production worker app with shared production env instead.
 - Local Git and frontend structure inspected.
+- Frontend safe env examples and `check:prod-env` guardrail were added locally; the guardrail currently fails by design until localhost fallbacks are remediated.
 - New shell scripts syntax-checked with remote `bash -n`.
 
 ## Explicit Non-Actions

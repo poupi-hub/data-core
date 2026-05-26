@@ -23,6 +23,13 @@ The local frontend workspace appears to be a pnpm/turbo monorepo with apps under
 - `packages/api-client/src/index.ts` defaults `NEXT_PUBLIC_API_URL` to `http://localhost:8000`.
 - `apps/poupi-baby` has many server routes/pages that default `BACKEND_URL` to localhost.
 - `README.md` documents per-app `.env.local` usage, but there is no verified production env contract or CI/CD flow in this local copy.
+- Safe env examples were added to the local frontend workspace:
+  - root `.env.example`;
+  - per-app `.env.local.example` files.
+- A production guardrail script was added:
+  - `scripts/check-production-localhost.mjs`;
+  - root package script `check:prod-env`.
+- `pnpm check:prod-env` currently fails by design because localhost references still exist in app `.env.local` files, `apps/poupi-baby`, and `packages/api-client`.
 
 ## Operational Risk
 
@@ -111,6 +118,8 @@ Run these before changing frontend code:
 Get-ChildItem -Force C:\Users\dev\Documents\Projetos\poupi-frontend
 Get-ChildItem -Recurse -Force C:\Users\dev\Documents\Projetos\poupi-frontend -Filter .git
 rg -n "localhost|127\.0\.0\.1|BACKEND_URL|NEXT_PUBLIC_API_URL" C:\Users\dev\Documents\Projetos\poupi-frontend
+cd C:\Users\dev\Documents\Projetos\poupi-frontend
+pnpm check:prod-env
 ```
 
 Then decide:
@@ -124,4 +133,3 @@ Then decide:
 - Do not mass-replace localhost fallbacks before identifying production endpoint names.
 - Do not deploy a frontend build from this local folder until Git/CI state is clarified.
 - Do not expose backend-only URLs as `NEXT_PUBLIC_*`.
-
