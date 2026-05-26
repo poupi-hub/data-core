@@ -1,6 +1,6 @@
 # data-core — AI Operational Context
 
-> For AI agents. Dense, machine-optimized. Updated: 2026-05-16.
+> For AI agents. Dense, machine-optimized. Updated: 2026-05-16 (Phase B).
 > Full human docs: `/docs/`. Source of truth: this file + `/docs/`.
 
 ---
@@ -10,7 +10,9 @@
 Production ETL platform (Python 3.12 / FastAPI) collecting, normalizing and computing analytics
 for 4 domains: **crypto**, **ecommerce**, **real_estate**, **sports_betting**.
 
-**Only crypto is fully active** — the others run on demo/stub data.
+**Active domains:** Crypto (fully active). **Ecommerce (Phase B in progress)** — Python scraper
+implemented, 17 VTEX targets seeded (Drogasil × 6, Drogaraia × 6, Pague Menos × 5).
+Real_estate and sports_betting run on demo/stub data.
 
 **Runtime:** 3 Docker containers on Hetzner via Coolify. One shared PostgreSQL + Redis instance.
 
@@ -85,11 +87,14 @@ Reference: `/docs/DATA_FLOW.md`
 | `app/pipeline/recorder.py` | `PipelineRecorder` — context manager for every stage run |
 | `app/pipeline/models.py` | `PipelineRun` + `PipelineFailure` SQLAlchemy models |
 | `logs/config.py` | `CorrelationFilter`, `PipelineFilter`, `set_pipeline_context()` |
-| `scheduler/jobs.py` | `normalize_job()` + `analytics_job()` — both wrapped with `PipelineRecorder` |
+| `scheduler/jobs.py` | `normalize_job()` + `analytics_job()` + `run_ecommerce_url_targets_job()` — all wrapped with `PipelineRecorder` |
+| `scheduler/service.py` | APScheduler setup — registers all jobs incl. ecommerce every 2h |
 | `scheduler/circuit_breaker.py` | Opens after 5 consecutive failures; manual reset via `reopen_source_circuit()` |
 | `scheduler/retry.py` | `with_retry(fn, max_retries=3, backoff_seconds=5)` + dead-letter write |
+| `collectors/ecommerce/url_scraper.py` | `EcommerceURLScraper` — VTEX Catalog API + JSON-LD scraper for 17 baby product targets |
 | `alembic/versions/0015_pipeline_observability.py` | Last migration: `pipeline_runs` + `pipeline_failures` |
 | `collectors/registry.py` | All collectors registered here |
+| `scripts/seed_ecommerce_targets.py` | Seeds/migrates `collection_targets` table to `ecommerce.url_scraper` |
 
 ---
 
@@ -154,9 +159,17 @@ Reference: `/docs/JOBS_AND_SCHEDULES.md`
 
 **Key intervals:**
 - Crypto collection: every 15 min (5 pairs × 2 TF via Binance/CCXT)
+- Ecommerce collection: every 2 h (`run_ecommerce_url_targets_job` — 17 VTEX targets via `EcommerceURLScraper`)
 - Normalization: every 15 min (worker)
 - Analytics: every 60 min (worker)
 - Data retention: Sunday 02:00 (cleans raw/normalized/analytics by retention policy)
+
+**Ecommerce scraper (`collectors/ecommerce/url_scraper.py`):**
+- `collector_name = "ecommerce.url_scraper"`, `raw_schema_name = "scrapedProduct"` v1.0.0
+- Strategy 1: VTEX Catalog API (`/api/catalog_system/pub/products/search?fq=productId:{id}`)
+- Strategy 2: JSON-LD structured data from HTML (`<script type="application/ld+json">`)
+- Output normalized by existing `PoupiLegacyScrapedProductV1Normalizer` — no normalizer changes needed
+- Targets auto-seeded by `ensure_default_collection_targets()` on every job run
 
 ---
 
@@ -182,7 +195,7 @@ Coolify deploys from GitHub `main` branch → `https://github.com/poupi-hub/data
 | Priority | Gap | Fix |
 |---|---|---|
 | P1 | `collection_raw_saved_total` not incremented in `collector_worker.py` | Import metric, call `.inc()` after save |
-| P1 | Ecommerce collectors not active | Seed `collection_targets` with real URLs |
+| P1 | Ecommerce scraper deployed but not yet validated end-to-end | Deploy Phase B + run `scripts/seed_ecommerce_targets.py --deactivate-legacy` in prod |
 | P1 | Sports odds API key missing | Set `THE_ODDS_API_KEY` env var |
 | P2 | `LOG_JSON=true` not set in production | Add to Coolify env vars |
 | P2 | Redis cache disabled (`CACHE_ENABLED=false`) | Enable + add TTL to analytics routes |

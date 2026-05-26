@@ -69,7 +69,7 @@ flowchart LR
 |---|---|---|---|
 | crypto | `crypto.crypto_coin_ohlcv` | 15 min | Binance via CCXT |
 | crypto | `crypto.generic_price` | 60 min | Generic exchange |
-| ecommerce | `ecommerce.generic_product` | 60 min | Demo / Drogasil scraper |
+| ecommerce | `ecommerce.url_scraper` | 120 min | VTEX Catalog API + JSON-LD (17 targets: Drogasil, Drogaraia, Pague Menos) |
 | real_estate | `real_estate.generic_listing` | 120 min | Demo / Apolar HTML |
 | sports_betting | `sports_betting.generic_odds` | 15 min | Demo / The Odds API |
 
