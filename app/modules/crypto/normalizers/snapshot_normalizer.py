@@ -53,7 +53,13 @@ class CryptoSnapshotNormalizer(BaseNormalizer):
             )
             result = self.db.execute(stmt)
             self.db.flush()
-            return result.rowcount
+            if result.rowcount is not None and result.rowcount >= 0:
+                return result.rowcount
+            return (
+                self.db.query(NormalizedMarketCandle)
+                .filter(NormalizedMarketCandle.raw_collection_id == raw.id)
+                .count()
+            )
         else:
             self.db.add(NormalizedCryptoSnapshot(raw_collection_id=raw.id, **normalized))
         self.db.flush()
