@@ -43,8 +43,8 @@ The notebook is no longer the primary runtime. Local Docker was not reachable du
 | Runtime containers without healthcheck | scheduler, worker, poupi-baby, poupi-jobs, alertmanager, prometheus | add healthchecks or external synthetic checks |
 | Prometheus restart policy | recreated with `unless-stopped` | preserve restart policy in managed compose |
 | Local secrets | `.env` and `.env.local` files exist locally | migrate to server-managed secrets, keep examples locally |
-| Frontend no Git root | `poupi-frontend` has no `.git` root detected | place under GitHub and CI/CD |
-| Frontend localhost fallbacks | centralized into helper/client code; `npm run check:prod-env` passes | run full lint/typecheck/build once pnpm is available in local shell or CI |
+| Frontend no remote origin | `poupi-frontend` now has local Git baseline `92b2d56`, but no remote origin was configured | create/attach GitHub remote and CI/CD |
+| Frontend localhost fallbacks | centralized into helper/client code; `check:prod-env`, monorepo typecheck, lint and build pass via `npx --yes pnpm@9.15.0` | preserve guardrail in CI |
 
 ## Architecture Consolidation Target
 
@@ -69,7 +69,8 @@ Public edge should be Traefik on `80/443`. Administrative and data services shou
 
 - Production-like secrets on local notebook.
 - Current runtime state may include uncommitted local repo changes in `data-core`, `poupi-crypto`, and `poupi-baby`.
-- `poupi-frontend` and `poupi-brand` are not reproducible from a detected Git root.
+- `poupi-frontend` is reproducible locally from a Git baseline but still needs GitHub remote and CI/CD.
+- `poupi-brand` still needs a reproducibility audit.
 - Backup scripts exist but recovery has not been demonstrated.
 
 ## Priority Plan
@@ -140,8 +141,8 @@ Public edge should be Traefik on `80/443`. Administrative and data services shou
 - `poupi-baby-worker` decision recorded: old Compose worker must not be started because it targets a separate local Compose database/Redis stack; create a production worker app with shared production env instead.
 - Local Git and frontend structure inspected.
 - Frontend safe env examples and `check:prod-env` guardrail were added locally; `npm run check:prod-env` now passes after centralizing localhost development fallbacks.
-- Full frontend monorepo `lint`/`typecheck` remain blocked locally because `pnpm` is unavailable and Corepack activation failed with Windows permission error.
-- Focused `apps/poupi-baby` validation passed with `npx tsc --noEmit` and `npx eslint .` reported 0 errors.
+- `poupi-frontend` local Git baseline created on `main` at `92b2d56`.
+- Full frontend monorepo validation passed through `npx --yes pnpm@9.15.0`: `check:prod-env`, `typecheck`, `lint`, and `build`.
 - New shell scripts syntax-checked with remote `bash -n`.
 
 ## Explicit Non-Actions

@@ -10,7 +10,9 @@ The local frontend workspace appears to be a pnpm/turbo monorepo with apps under
 
 ## Current Findings
 
-- No `.git` directory was found at `C:\Users\dev\Documents\Projetos\poupi-frontend`.
+- A local Git repository now exists at `C:\Users\dev\Documents\Projetos\poupi-frontend`.
+- Baseline branch: `main`.
+- Baseline commit: `92b2d56 chore: establish frontend baseline`.
 - Real `.env.local` files exist under multiple frontend apps:
   - `apps/crypto-dashboard/.env.local`
   - `apps/poupi-baby/.env.local`
@@ -29,10 +31,10 @@ The local frontend workspace appears to be a pnpm/turbo monorepo with apps under
   - `scripts/check-production-localhost.mjs`;
   - root package script `check:prod-env`.
 - `npm run check:prod-env` now passes locally.
-- Full `lint`/`typecheck` validation is still blocked on the notebook because `pnpm` is not available and Corepack could not write to `C:\Program Files\nodejs`.
-- Focused validation for `apps/poupi-baby` passed:
-  - `npx tsc --noEmit`;
-  - `npx eslint .` with 0 errors and existing warnings only.
+- `npx --yes pnpm@9.15.0 check:prod-env` passes.
+- `npx --yes pnpm@9.15.0 typecheck` passes for the monorepo.
+- `npx --yes pnpm@9.15.0 lint` passes for the monorepo with warnings only in `apps/poupi-baby`.
+- `npx --yes pnpm@9.15.0 build` passes for the monorepo.
 
 ## Operational Risk
 
@@ -40,7 +42,7 @@ Classification: `PARTIAL`
 
 The frontend can likely be developed locally, but it is not yet production-operationally mature because:
 
-- Deploy reproducibility cannot be proven without a Git root or remote origin.
+- Deploy reproducibility is proven locally, but not yet in CI/CD or a remote GitHub origin.
 - Runtime endpoints were previously able to silently point to localhost if env vars were missing; production now fails fast in the centralized helpers.
 - Secrets may remain scattered in local `.env.local` files.
 - Different apps may build against different implicit API targets.
@@ -78,9 +80,9 @@ Rules:
 ### Phase 1 - Version Control
 
 1. Confirm whether an upstream GitHub repository already exists.
-2. If it exists, reclone it cleanly and compare with this local folder.
-3. If it does not exist, initialize Git only after owner approval.
-4. Add `.env.local`, `.env.production`, `.next`, `node_modules`, and build artifacts to `.gitignore`.
+2. If it exists, add it as `origin` and compare before pushing.
+3. If it does not exist, create a private GitHub repository and push `main`.
+4. Keep `.env.local`, `.env.production`, `.next`, `node_modules`, and build artifacts ignored.
 
 ### Phase 2 - Env Hygiene
 
