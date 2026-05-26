@@ -1,0 +1,166 @@
+# strategy_registry.yaml — Phase H Fase 7
+#
+# Registro canônico de estratégias de trading.
+# Define: identity, parameters, status, performance history, notes.
+#
+# Status:
+#   active     — estratégia em uso no trading engine
+#   research   — em desenvolvimento/otimização (paper only)
+#   archived   — descontinuada (histórico preservado)
+#   candidate  — identificada, aguardando validação
+
+strategies:
+
+  # ── Trend Following (estratégia principal) ─────────────────────────────────
+  - id: trend_following
+    name: "Trend Following v4"
+    description: >
+      Estratégia de seguimento de tendência com múltiplos indicadores.
+      Entrada: RSI + MA + ADX + regime BULLISH.
+      Saída: trailing stop ou take-profit percentual.
+      Confirmação MTF (multi-timeframe bias).
+    version: "v4.0"
+    status: active
+    created_at: "2025-01-01"
+    last_updated: "2026-05-16"
+
+    # Parâmetros canônicos (defaults do TradingBot v4)
+    parameters:
+      # Entrada
+      rsi_period:         14
+      rsi_oversold:       35
+      ma_fast:            9
+      ma_slow:            21
+      adx_period:         14
+      adx_threshold:      25
+      min_confidence:     60
+
+      # Saída
+      stop_loss_pct:      2.0    # % abaixo da entrada
+      take_profit_pct:    4.0    # % acima da entrada
+      trailing_stop_pct:  1.5    # trailing stop após lucro > 1.5%
+      trailing_trigger:   1.0    # ativar trailing após lucro >= 1%
+
+      # Regime
+      require_bullish_regime:  true
+      mtf_bias_filter:         true   # exige MTF BULLISH para entrada
+
+      # Gestão
+      max_open_positions: 1
+      position_size_pct:  0.95   # % do capital por trade
+
+    # Histórico de performance (best-of por symbol/timeframe)
+    performance_history:
+      - symbol:      "BTC/USDT"
+        timeframe:   "15m"
+        dataset:     "db_replay"
+        days:        90
+        sharpe:      1.42
+        sortino:     1.81
+        calmar:      2.15
+        max_drawdown: 0.089
+        total_trades: 47
+        win_rate:    0.617
+        total_return_pct: 19.2
+        recorded_at: "2026-05-16"
+
+      - symbol:      "ETH/USDT"
+        timeframe:   "15m"
+        dataset:     "db_replay"
+        days:        90
+        sharpe:      1.18
+        sortino:     1.55
+        calmar:      1.72
+        max_drawdown: 0.112
+        total_trades: 53
+        win_rate:    0.585
+        total_return_pct: 14.7
+        recorded_at: "2026-05-16"
+
+    notes: >
+      Estratégia madura — em uso desde Phase D. Sortino/Calmar adicionados em
+      Phase G. MTF bias filter reduz sinais falsos em regimes neutros.
+
+  # ── Breakout Scalper ────────────────────────────────────────────────────────
+  - id: breakout_scalper
+    name: "Breakout Scalper"
+    description: >
+      Estratégia de rompimento de resistência intraday.
+      Foco em movimentos de alta volatilidade (ATR elevado).
+      Horizonte: 1h–4h. Adequada para bull markets com liquidez.
+    version: "v1.0"
+    status: research
+    created_at: "2026-04-01"
+    last_updated: "2026-05-16"
+
+    parameters:
+      breakout_period:    20     # candles para calcular resistência
+      volume_multiplier:  1.5    # volume deve ser > 1.5x média para confirmar
+      atr_period:         14
+      atr_multiplier:     1.2    # stop = entry - ATR * multiplier
+      min_atr_pct:        0.8    # ATR mínimo como % do preço (filtro volatilidade)
+      take_profit_ratio:  2.0    # TP = 2x o risco (risk:reward 1:2)
+      max_open_positions: 1
+
+    performance_history: []
+
+    notes: >
+      Em fase de pesquisa. Requer dataset com pelo menos 60 dias de dados para
+      validação estatística mínima (>30 trades). Testar com db_replay primeiro.
+
+  # ── Mean Reversion ──────────────────────────────────────────────────────────
+  - id: mean_reversion
+    name: "Mean Reversion (RSI Oversold)"
+    description: >
+      Compra em oversold extremo (RSI < 25) com confirmação de suporte.
+      Adequada para mercados laterais (regime NEUTRAL).
+      Alto win rate mas baixo R:R. Usar como complemento ao trend_following.
+    version: "v1.0"
+    status: research
+    created_at: "2026-05-01"
+    last_updated: "2026-05-16"
+
+    parameters:
+      rsi_period:       14
+      rsi_entry:        25     # compra quando RSI < 25
+      rsi_exit:         55     # vende quando RSI > 55
+      bb_period:        20     # Bollinger Bands para suporte/resistência
+      bb_std:           2.0
+      stop_loss_pct:    1.5
+      take_profit_pct:  3.0
+      require_neutral_regime: true
+
+    performance_history: []
+
+    notes: >
+      Candidata para regime NEUTRAL. Ainda sem validação via db_replay.
+      Prioridade baixa — trend_following tem melhor Sharpe em regime BULLISH.
+
+  # ── Shadow Tester ───────────────────────────────────────────────────────────
+  - id: shadow_tester
+    name: "Shadow Paper Trader"
+    description: >
+      Estratégia de shadow trading para validação paralela.
+      Executa em paralelo com trend_following sem afetar capital real.
+      Compara sinais aceitos vs recusados para medir qualidade do filtro.
+    version: "v2.0"
+    status: active
+    created_at: "2025-06-01"
+    last_updated: "2026-05-16"
+
+    parameters:
+      # Replica parâmetros do trend_following — validação de setup_score
+      rsi_period:       14
+      rsi_oversold:     35
+      ma_fast:          9
+      ma_slow:          21
+      adx_threshold:    20     # threshold mais baixo = mais sinais para shadow
+      min_confidence:   40
+      stop_loss_pct:    2.0
+      take_profit_pct:  4.0
+
+    performance_history: []
+
+    notes: >
+      Não executa ordens reais. Usado para medir quantos sinais são filtrados
+      e o impacto do regime filter na qualidade final.
