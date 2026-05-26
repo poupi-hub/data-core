@@ -18,7 +18,8 @@ The local frontend workspace appears to be a pnpm/turbo monorepo with apps under
 - Initial CI workflow exists at `.github/workflows/ci.yml`.
 - Branch `main` was pushed to GitHub.
 - GitHub Actions CI is green on `main`.
-- Green run: `26451821825`.
+- Latest green run: `26451961070`.
+- Branch protection for `main` requires `Frontend checks`, strict status checks, no force pushes and no branch deletion.
 - Real `.env.local` files exist under multiple frontend apps:
   - `apps/crypto-dashboard/.env.local`
   - `apps/poupi-baby/.env.local`
@@ -48,7 +49,7 @@ Classification: `PARTIAL`
 
 The frontend can likely be developed locally, but it is not yet production-operationally mature because:
 
-- Deploy reproducibility is proven locally and GitHub CI is green. Next gate is branch protection plus Coolify/CI deploy wiring.
+- Deploy reproducibility is proven locally and GitHub CI is green. Branch protection is active. Next gate is Coolify/CI deploy wiring.
 - Runtime endpoints were previously able to silently point to localhost if env vars were missing; production now fails fast in the centralized helpers.
 - Secrets may remain scattered in local `.env.local` files.
 - Different apps may build against different implicit API targets.
@@ -86,8 +87,7 @@ Rules:
 ### Phase 1 - Version Control
 
 1. Keep `.env.local`, `.env.production`, `.next`, `node_modules`, and build artifacts ignored.
-2. Configure branch protection for `main`.
-3. Wire Coolify/CI deploy from GitHub.
+2. Wire Coolify/CI deploy from GitHub.
 
 ### Phase 2 - Env Hygiene
 

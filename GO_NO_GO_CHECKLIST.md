@@ -18,7 +18,7 @@ Current classification: PARTIAL.
 - Critical containers have restart policy.
 - Critical APIs have healthchecks.
 - Local production secrets have been removed or documented as temporary.
-- Frontend deploy path is reproducible locally and connected to GitHub/CI; CI is green and deploy wiring/branch protection remain before production deploy.
+- Frontend deploy path is reproducible locally and connected to GitHub/CI; CI is green and branch protection is active. Deploy wiring remains before production deploy.
 
 ## NO-GO Conditions
 
@@ -43,4 +43,4 @@ Current classification: PARTIAL.
 - Prometheus stale target `poupi-baby-worker` was removed; old Compose worker must not be started because it targets a separate local Compose DB/Redis. Production worker requires a Coolify-managed app with shared production env.
 - `poupi-frontend` and `poupi-brand` have no Git root detected locally.
 - Frontend localhost fallbacks have been centralized; `check:prod-env`, monorepo typecheck, lint and build pass via `npx --yes pnpm@9.15.0`.
-- `poupi-frontend` is pushed to GitHub with green CI; protect `main` and wire Coolify/CI deploy next.
+- `poupi-frontend` is pushed to GitHub with green CI and protected `main`; wire Coolify/CI deploy next.

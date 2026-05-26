@@ -43,7 +43,7 @@ The notebook is no longer the primary runtime. Local Docker was not reachable du
 | Runtime containers without healthcheck | scheduler, worker, poupi-baby, poupi-jobs, alertmanager, prometheus | add healthchecks or external synthetic checks |
 | Prometheus restart policy | recreated with `unless-stopped` | preserve restart policy in managed compose |
 | Local secrets | `.env` and `.env.local` files exist locally | migrate to server-managed secrets, keep examples locally |
-| Frontend GitHub/CI | `poupi-frontend` pushed to `poupi-hub/poupi-frontend`; CI green on run `26451821825` | protect `main` and wire Coolify/CI deploy |
+| Frontend GitHub/CI | `poupi-frontend` pushed to `poupi-hub/poupi-frontend`; CI green on run `26451961070`; branch protection active | wire Coolify/CI deploy |
 | Frontend localhost fallbacks | centralized into helper/client code; `check:prod-env`, monorepo typecheck, lint and build pass via `npx --yes pnpm@9.15.0` | preserve guardrail in CI and deploy gate |
 
 ## Architecture Consolidation Target
@@ -144,7 +144,8 @@ Public edge should be Traefik on `80/443`. Administrative and data services shou
 - `poupi-frontend` local Git baseline created on `main` at `92b2d56`.
 - `poupi-frontend` pushed to `https://github.com/poupi-hub/poupi-frontend.git`.
 - GitHub Actions workflow added for `check:prod-env`, lint, typecheck and build.
-- GitHub Actions CI passed on run `26451821825`.
+- GitHub Actions CI passed on run `26451961070`.
+- GitHub branch protection enabled for `main` with required `Frontend checks`.
 - Full frontend monorepo validation passed through `npx --yes pnpm@9.15.0`: `check:prod-env`, `typecheck`, `lint`, and `build`.
 - New shell scripts syntax-checked with remote `bash -n`.
 
