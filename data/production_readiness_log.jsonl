@@ -1,0 +1,1 @@
+{"evaluated_at": "2026-05-17T11:23:43.893279+00:00", "report_id": "7ee5baf9-37c", "classification": "RESEARCH", "readiness_confidence": 80.0, "operational_maturity_score": 75.0, "dimensions_passed": 6, "dimensions_total": 8, "uptime_hours": 0.0, "incident_rate_per_hour": 0.0, "blocking_factors": ["uptime=0.0h <= 4h", "watchdog=10.0 <= 60"]}

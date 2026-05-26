@@ -1,0 +1,1 @@
+{"evaluated_at": "2026-05-17T07:20:14.778128+00:00", "live_readiness_score": 62.5, "execution_reliability_score": 50.0, "approved_for_micro_live": false, "blocking_failures": 2, "gates_passed": 5, "gates_failed": 3}

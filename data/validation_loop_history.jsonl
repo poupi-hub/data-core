@@ -1,0 +1,1 @@
+{"evaluated_at": "2026-05-17T07:20:14.782615+00:00", "cycle_id": "d88c35b4-7ab", "validation_health_score": 85.5, "live_readiness_score": 62.5, "autonomy_stability": 100.0, "capital_survival": 90.0, "governance_drift": 0.0, "catastrophic_survival": 100.0, "approved_for_micro_live": false, "blocking_failures": 2, "phases_ok": 8, "phases_error": 0, "total_duration_s": 1.0}

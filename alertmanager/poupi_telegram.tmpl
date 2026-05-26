@@ -1,0 +1,33 @@
+{{ define "poupi.telegram.status" -}}
+{{- if eq .Status "resolved" -}}RECOVERY{{- else -}}
+{{- if eq .CommonLabels.severity "critical" -}}CRITICAL{{- else if eq .CommonLabels.severity "warning" -}}WARNING{{- else -}}INFO{{- end -}}
+{{- end -}}
+{{- end }}
+
+{{ define "poupi.telegram.message" -}}
+<b>{{ template "poupi.telegram.status" . }} - {{ .CommonAnnotations.summary }}</b>
+{{- if .CommonLabels.component }}
+Component: {{ .CommonLabels.component }}
+{{- end }}
+{{- if .CommonAnnotations.impact }}
+Impact: {{ .CommonAnnotations.impact }}
+{{- end }}
+{{- if .CommonAnnotations.action }}
+Action: {{ .CommonAnnotations.action }}
+{{- end }}
+{{- if .CommonAnnotations.dashboard }}
+Grafana: {{ .CommonAnnotations.dashboard }}
+{{- end }}
+Alerts: {{ len .Alerts }}
+{{- range .Alerts }}
+{{- if .Labels.instance }}
+Instance: {{ .Labels.instance }}
+{{- end }}
+{{- if .StartsAt }}
+Since: {{ .StartsAt.Format "2006-01-02 15:04:05 UTC" }}
+{{- end }}
+{{- if and (eq $.Status "resolved") .EndsAt }}
+Resolved: {{ .EndsAt.Format "2006-01-02 15:04:05 UTC" }}
+{{- end }}
+{{- end }}
+{{- end }}

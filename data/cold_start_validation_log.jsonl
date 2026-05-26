@@ -1,0 +1,4 @@
+{"evaluated_at": "2026-05-17T14:06:53.333518+00:00", "cold_start_resilience_score": 64.0, "grade": "D", "checks_passed": 6, "checks_failed": 4, "total_checks": 10}
+{"evaluated_at": "2026-05-17T14:07:03.311208+00:00", "cold_start_resilience_score": 64.0, "grade": "D", "checks_passed": 6, "checks_failed": 4, "total_checks": 10}
+{"evaluated_at": "2026-05-17T14:07:16.881185+00:00", "cold_start_resilience_score": 64.0, "grade": "D", "checks_passed": 6, "checks_failed": 4, "total_checks": 10}
+{"evaluated_at": "2026-05-17T14:07:34.028146+00:00", "cold_start_resilience_score": 64.0, "grade": "D", "checks_passed": 6, "checks_failed": 4, "total_checks": 10}

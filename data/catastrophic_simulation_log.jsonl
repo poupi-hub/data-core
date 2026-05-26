@@ -1,0 +1,7 @@
+{"simulated_at": "2026-05-17T07:20:14.261700+00:00", "scenario_name": "flash_crash", "reaction_score": 100.0, "control_mode": "survival", "exposure_level": 0.15, "passed": true}
+{"simulated_at": "2026-05-17T07:20:14.264696+00:00", "scenario_name": "cascading_volatility", "reaction_score": 100.0, "control_mode": "emergency", "exposure_level": 0.35, "passed": true}
+{"simulated_at": "2026-05-17T07:20:14.266435+00:00", "scenario_name": "liquidity_collapse", "reaction_score": 100.0, "control_mode": "emergency", "exposure_level": 0.35, "passed": true}
+{"simulated_at": "2026-05-17T07:20:14.268697+00:00", "scenario_name": "prolonged_bear", "reaction_score": 100.0, "control_mode": "survival", "exposure_level": 0.15, "passed": true}
+{"simulated_at": "2026-05-17T07:20:14.275228+00:00", "scenario_name": "regime_instability", "reaction_score": 100.0, "control_mode": "survival", "exposure_level": 0.15, "passed": true}
+{"simulated_at": "2026-05-17T07:20:14.303371+00:00", "scenario_name": "multi_strategy_degradation", "reaction_score": 100.0, "control_mode": "survival", "exposure_level": 0.15, "passed": true}
+{"simulated_at": "2026-05-17T07:20:14.308369+00:00", "scenario_name": "__summary__", "reaction_score": 100.0, "control_mode": "normal", "exposure_level": 1.0, "passed": true}

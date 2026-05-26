@@ -1,0 +1,177 @@
+groups:
+  - name: poupi-telegram-shadow-critical
+    interval: 30s
+    rules:
+      - alert: PoupiShadowDataCoreApiDown
+        expr: up{job="data-core-api"} == 0
+        for: 2m
+        labels:
+          severity: critical
+          service: data-core
+          component: api
+          channel: telegram
+        annotations:
+          summary: "[SHADOW] Data Core API unreachable"
+          impact: "Data Core metrics and APIs may be unavailable; downstream freshness and runtime checks can degrade."
+          action: "Check data-core-api container health, logs, and database connectivity."
+          dashboard: "Data Core / Operations Overview"
+
+      - alert: PoupiShadowSchedulerHeartbeatMissing
+        expr: scheduler_heartbeat_age_seconds > 600 or scheduler_heartbeat_age_seconds == -1
+        for: 2m
+        labels:
+          severity: critical
+          service: data-core
+          component: scheduler
+          channel: telegram
+        annotations:
+          summary: "[SHADOW] Scheduler heartbeat stale"
+          impact: "APScheduler may be frozen even if the container is still alive."
+          action: "Check scheduler logs, heartbeat file, recent failures, DB, and Redis dependencies."
+          dashboard: "Data Core / Scheduler Runtime"
+
+      - alert: PoupiShadowSchedulerRestartCountIncreasing
+        expr: increase(data_core_scheduler_restart_count[15m]) > 0
+        for: 0m
+        labels:
+          severity: critical
+          service: data-core
+          component: scheduler
+          channel: telegram
+        annotations:
+          summary: "[SHADOW] Scheduler restart count increased"
+          impact: "Scheduler may be crash-looping or recovering from OOM/deployment drift."
+          action: "Inspect restart provenance, OOM counters, container logs, and recent deploy changes."
+          dashboard: "Data Core / Scheduler Forensics"
+
+      - alert: PoupiShadowSchedulerOomRecent
+        expr: data_core_scheduler_state == 4
+        for: 0m
+        labels:
+          severity: critical
+          service: data-core
+          component: scheduler
+          channel: telegram
+        annotations:
+          summary: "[SHADOW] Scheduler OOM detected"
+          impact: "Scheduler may have been killed under memory pressure; jobs and freshness can be delayed."
+          action: "Preserve logs, check memory/swap trend, and reduce load before restarting manually."
+          dashboard: "Data Core / Scheduler Memory"
+
+      - alert: PoupiShadowNormalizationLagCritical
+        expr: pipeline_liveness_lag_seconds{pipeline_id="normalize_ecommerce"} > 7200
+        for: 5m
+        labels:
+          severity: critical
+          service: data-core
+          component: freshness
+          channel: telegram
+        annotations:
+          summary: "[SHADOW] Ecommerce normalization lag critical"
+          impact: "Raw collections are accumulating without timely normalization; downstream analytics may become stale."
+          action: "Check normalize_ecommerce pipeline, scheduler state, failed jobs, and raw backlog."
+          dashboard: "Data Core / Pipeline Freshness"
+
+      - alert: PoupiShadowQueueOldestJobAgeCritical
+        expr: queue_lag_seconds{module="ecommerce"} > 14400
+        for: 5m
+        labels:
+          severity: critical
+          service: data-core
+          component: freshness
+          channel: telegram
+        annotations:
+          summary: "[SHADOW] Oldest ecommerce queue item is stale"
+          impact: "Data freshness is severely degraded; oldest pending raw record is too old."
+          action: "Inspect normalization backlog, failed jobs, scheduler health, and DB write path."
+          dashboard: "Data Core / Queue Lag"
+
+      - alert: PoupiShadowVolatileOomKilled
+        expr: container_oom_killed_total{job="poupi-crypto-volatile"} > 0
+        for: 0m
+        labels:
+          severity: critical
+          service: poupi-crypto
+          component: runtime
+          runtime: volatile
+          channel: telegram
+        annotations:
+          summary: "[SHADOW] Volatile runtime OOM-killed"
+          impact: "Volatile runtime is unstable; advisory/runtime experiments may be interrupted."
+          action: "Check volatile runtime logs, memory limit, analysis pair count, and restart behavior."
+          dashboard: "Crypto / Runtime Burn-in"
+
+  - name: poupi-telegram-shadow-warning
+    interval: 60s
+    rules:
+      - alert: PoupiShadowDataCorePriceFeedNoItemsServed
+        expr: (sum(increase(price_feed_items_served_total[30m])) or vector(0)) == 0
+        for: 15m
+        labels:
+          severity: warning
+          service: data-core
+          component: freshness
+          channel: telegram
+        annotations:
+          summary: "[SHADOW] Data Core price feed served zero items"
+          impact: "Poupi-baby or downstream consumers may not be receiving fresh price-feed data."
+          action: "Check collection, normalization, price-feed requests, and poupi-baby sync."
+          dashboard: "Data Core / Pipeline Freshness"
+
+      - alert: PoupiShadowSchedulerConsecutiveFailures
+        expr: scheduler_consecutive_failures >= 3
+        for: 0m
+        labels:
+          severity: warning
+          service: data-core
+          component: scheduler
+          channel: telegram
+        annotations:
+          summary: "[SHADOW] Scheduler has consecutive failures"
+          impact: "Repeated job failures can degrade freshness or backlog recovery."
+          action: "Check scheduler logs, pipeline_failures table, recent source errors, and DB connectivity."
+          dashboard: "Data Core / Scheduler Reliability"
+
+      - alert: PoupiShadowSchedulerExecutionDrift
+        expr: scheduler_execution_drift_seconds > 300
+        for: 5m
+        labels:
+          severity: warning
+          service: data-core
+          component: scheduler
+          channel: telegram
+        annotations:
+          summary: "[SHADOW] Scheduler execution drift high"
+          impact: "Jobs are firing late; freshness may degrade if drift persists."
+          action: "Check CPU/memory pressure, long-running jobs, backlog, and executor pool saturation."
+          dashboard: "Data Core / Scheduler Reliability"
+
+      - alert: PoupiShadowVolatileSchedulerStale
+        expr: time() - scheduler_last_success_timestamp{job="poupi-crypto-volatile", job_id="analyze_signals"} > 7200
+        for: 5m
+        labels:
+          severity: warning
+          service: poupi-crypto
+          component: scheduler
+          runtime: volatile
+          channel: telegram
+        annotations:
+          summary: "[SHADOW] Volatile analyze_signals job stale"
+          impact: "Volatile runtime may not be analyzing signals as expected."
+          action: "Check volatile scheduler health, data-core connectivity, and runtime logs."
+          dashboard: "Crypto / Volatile Runtime"
+
+      - alert: PoupiShadowVolatileRedisDown
+        expr: redis_up{job="poupi-crypto-volatile"} == 0
+        for: 5m
+        labels:
+          severity: warning
+          service: poupi-crypto
+          component: redis
+          runtime: volatile
+          channel: telegram
+        annotations:
+          summary: "[SHADOW] Volatile Redis unavailable"
+          impact: "Volatile scheduler may run without distributed lock or lose coordination."
+          action: "Check volatile Redis container, network, and memory."
+          dashboard: "Crypto / Volatile Runtime"

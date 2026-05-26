@@ -1,0 +1,71 @@
+# Telegram-first Alertmanager candidate config.
+#
+# This file intentionally does not replace alertmanager.yml yet.
+# Current production/default receiver remains operational-webhook.
+# Use this after rendering TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID from .env or the deployment secret store.
+
+global:
+  resolve_timeout: 5m
+
+route:
+  receiver: operational-webhook
+  group_by: ["alertname", "service", "component", "severity"]
+  group_wait: 30s
+  group_interval: 5m
+  repeat_interval: 4h
+  routes:
+    - matchers:
+        - channel="telegram"
+        - severity="critical"
+      receiver: poupi-system-bot-critical
+      group_wait: 15s
+      group_interval: 5m
+      repeat_interval: 2h
+
+    - matchers:
+        - channel="telegram"
+        - severity="warning"
+      receiver: poupi-system-bot-warning
+      group_wait: 2m
+      group_interval: 30m
+      repeat_interval: 6h
+
+inhibit_rules:
+  - source_matchers:
+      - alertname="PoupiPostgresDown"
+    target_matchers:
+      - component=~"runtime|scheduler|freshness|replay"
+    equal: ["severity"]
+
+  - source_matchers:
+      - alertname="PoupiRedisDown"
+    target_matchers:
+      - component=~"runtime|scheduler"
+    equal: ["severity"]
+
+receivers:
+  - name: operational-webhook
+    webhook_configs:
+      - url: http://host.docker.internal:9099/alerts
+        send_resolved: true
+
+  - name: poupi-system-bot-critical
+    telegram_configs:
+      - bot_token: "__TELEGRAM_BOT_TOKEN__"
+        chat_id: __TELEGRAM_CHAT_ID__
+        parse_mode: HTML
+        send_resolved: true
+        message: |
+          {{ template "poupi.telegram.message" . }}
+
+  - name: poupi-system-bot-warning
+    telegram_configs:
+      - bot_token: "__TELEGRAM_BOT_TOKEN__"
+        chat_id: __TELEGRAM_CHAT_ID__
+        parse_mode: HTML
+        send_resolved: true
+        message: |
+          {{ template "poupi.telegram.message" . }}
+
+templates:
+  - /etc/alertmanager/templates/poupi_telegram.tmpl

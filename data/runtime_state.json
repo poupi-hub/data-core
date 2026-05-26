@@ -1,0 +1,9 @@
+{
+  "persisted_at": "2026-05-17T11:24:03.591546+00:00",
+  "startup_phase": "BOOTSTRAPPING",
+  "startup_recovery_state": "COLD_START",
+  "trading_mode": "paper",
+  "live_auto_activation": false,
+  "startup_health_score": 33.3,
+  "startup_integrity_score": 100.0
+}

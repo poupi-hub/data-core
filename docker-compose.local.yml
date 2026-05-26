@@ -1,0 +1,42 @@
+# Local-only override. Keep production docker-compose.yml unchanged.
+# Usage:
+#   docker compose -f docker-compose.yml -f docker-compose.local.yml --profile dev up
+#   docker compose -f docker-compose.yml -f docker-compose.local.yml --profile runtime up
+#   docker compose -f docker-compose.yml -f docker-compose.local.yml --profile observability up
+services:
+  api:
+    profiles: ["dev", "runtime", "debug"]
+    restart: "no"
+
+  scheduler:
+    profiles: ["scheduler", "runtime"]
+    restart: "no"
+
+  worker:
+    profiles: ["worker", "runtime"]
+    restart: "no"
+
+  tests:
+    profiles: ["debug", "test"]
+    restart: "no"
+
+  postgres:
+    profiles: ["dev", "runtime", "scheduler", "worker", "debug"]
+    restart: "no"
+
+  redis:
+    profiles: ["dev", "runtime", "scheduler", "worker", "debug"]
+    restart: "no"
+
+  prometheus:
+    profiles: ["observability"]
+    restart: "no"
+    depends_on: []
+
+  alertmanager:
+    profiles: ["observability"]
+    restart: "no"
+
+  grafana:
+    profiles: ["observability"]
+    restart: "no"

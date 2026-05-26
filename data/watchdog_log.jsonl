@@ -1,0 +1,1 @@
+{"evaluated_at": "2026-05-17T11:23:37.365067+00:00", "report_id": "6b8c290c-60f", "watchdog_health_score": 10.0, "loop_integrity_score": 70.0, "runtime_anomaly_score": 15.0, "healthy_count": 1, "degraded_count": 1, "stalled_count": 1, "unknown_count": 7, "anomalies_count": 1, "recommended_action": "ESCALATE"}

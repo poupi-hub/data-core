@@ -1,0 +1,1 @@
+{"evaluated_at": "2026-05-17T11:24:05.790695+00:00", "report_id": "e51d4bec-427", "runtime_governance_score": 54.1, "operational_resilience_score": 45.7, "production_readiness_score": 50.7, "autonomous_runtime_state": "RECOVERING", "operational_approval": false, "paper_execution_allowed": false, "live_execution_allowed": false, "phases_ok": 8, "phases_error": 0}
