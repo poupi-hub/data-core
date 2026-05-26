@@ -1,0 +1,185 @@
+groups:
+  - name: outcome-pipeline-health
+    interval: 60s
+    rules:
+
+      # ── Bootstrap suppression ──────────────────────────────────────────────
+      # All WARNING/CRITICAL alerts in this file are gated on
+      # outcome_bootstrap_phase == 0  (i.e., runtime is past bootstrap phase).
+      # During bootstrap (days 0–3), severity is reduced to INFO to prevent
+      # alert storm on a fresh runtime with no accumulated outcomes.
+
+      # ── Pipeline stalled ──────────────────────────────────────────────────
+
+      - alert: OutcomePipelineStalled
+        expr: >
+          outcome_pipeline_health_score < 30
+          and on() (outcome_bootstrap_phase == 0)
+        for: 15m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Outcome pipeline health critically degraded (score={{ $value | printf \"%.0f\" }}/100)"
+          description: >
+            outcome_pipeline_health_score = {{ $value | printf "%.1f" }}.
+            The signal outcome evaluation pipeline has been degraded for 15+ minutes.
+            Possible causes: signal_outcomes_job not running, no candle data,
+            or persistent evaluation errors.
+            Check /api/v1/trading/validation/health for details.
+
+      - alert: OutcomePipelineWarning
+        expr: >
+          outcome_pipeline_health_score < 60
+          and on() (outcome_bootstrap_phase == 0)
+        for: 30m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Outcome pipeline health degraded (score={{ $value | printf \"%.0f\" }}/100)"
+          description: >
+            outcome_pipeline_health_score = {{ $value | printf "%.1f" }}.
+            Pipeline is running below healthy threshold. Check pending backlog
+            and last evaluation timestamp.
+
+      - alert: OutcomePipelineBootstrapActive
+        expr: >
+          outcome_bootstrap_phase == 1
+        for: 0m
+        labels:
+          severity: info
+        annotations:
+          summary: "Outcome pipeline in bootstrap phase — alerts suppressed"
+          description: >
+            outcome_bootstrap_phase = 1. Runtime has fewer than 50 evaluated outcomes.
+            WARNING and CRITICAL pipeline alerts are suppressed during bootstrap.
+            This is expected behaviour for the first 2–5 days of a new runtime.
+
+      # ── Pending outcomes ──────────────────────────────────────────────────
+
+      - alert: OutcomePendingBacklogHigh
+        expr: >
+          sum(outcome_pending_total) > 200
+          and on() (outcome_bootstrap_phase == 0)
+        for: 60m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High pending outcome backlog: {{ $value | printf \"%.0f\" }} signals"
+          description: >
+            sum(outcome_pending_total) = {{ $value | printf "%.0f" }}.
+            More than 200 BUY/SELL signals are awaiting outcome evaluation.
+            signal_outcomes_job may be stalling or running with a limit too low.
+
+      # ── Evaluation absence ────────────────────────────────────────────────
+
+      - alert: OutcomeJobNotRunning
+        expr: >
+          outcome_runtime_lag_seconds > 7200
+          and on() (outcome_bootstrap_phase == 0)
+          and sum(outcome_pending_total) > 0
+        for: 10m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Outcome tracker has not run in >2h with pending signals"
+          description: >
+            outcome_runtime_lag_seconds = {{ $value | humanizeDuration }}.
+            There are pending outcomes but the tracker is not evaluating them.
+            Verify signal_outcomes_job is scheduled and executing without errors.
+
+      # ── Evaluation errors ─────────────────────────────────────────────────
+
+      - alert: OutcomeEvalErrorSpike
+        expr: >
+          rate(outcome_eval_error_total[30m]) > 0.1
+          and on() (outcome_bootstrap_phase == 0)
+        for: 0m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Outcome evaluation error spike: {{ $labels.symbol }}/{{ $labels.timeframe }}"
+          description: >
+            rate(outcome_eval_error_total[30m]) = {{ $value | printf "%.3f" }}/s for
+            {{ $labels.symbol }}/{{ $labels.timeframe }}.
+            More than 0.1 errors/s in the last 30 minutes.
+            Check normalizer pipeline and candle availability.
+
+      - alert: OutcomeFutureCandlesMissing
+        expr: >
+          increase(outcome_future_candles_missing_total[1h]) > 10
+          and on() (outcome_bootstrap_phase == 0)
+        for: 0m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Outcome candle lookup failures: {{ $labels.symbol }}/{{ $labels.timeframe }}"
+          description: >
+            {{ $value | printf "%.0f" }} signals in the last hour found no subsequent candles
+            for {{ $labels.symbol }}/{{ $labels.timeframe }}.
+            Indicates normalization pipeline lag or candle gaps.
+
+  - name: outcome-pipeline-quant
+    interval: 300s
+    rules:
+
+      # ── Low accuracy ──────────────────────────────────────────────────────
+
+      - alert: OutcomeLowAccuracy
+        expr: >
+          outcome_accuracy_ratio < 0.35
+          and on() (outcome_bootstrap_phase == 0)
+        for: 30m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Low signal accuracy for {{ $labels.symbol }}/{{ $labels.timeframe }}/{{ $labels.signal }}"
+          description: >
+            outcome_accuracy_ratio = {{ $value | printf "%.1%%" }} for
+            {{ $labels.symbol }}/{{ $labels.timeframe }} {{ $labels.signal }} signals.
+            Accuracy < 35% sustained for 30+ min.
+            Note: random chance is ~50%; this alert fires below 35%.
+            Check /api/v1/trading/validation/calibration for full calibration report.
+
+      # ── Dataset maturity ──────────────────────────────────────────────────
+
+      - alert: DatasetStillBootstrapping
+        expr: >
+          dataset_maturity_score < 20
+        for: 72h
+        labels:
+          severity: warning
+        annotations:
+          summary: "Dataset maturity score still in BOOTSTRAP after 3 days"
+          description: >
+            dataset_maturity_score = {{ $value | printf "%.1f" }}.
+            Score has stayed below 20 for more than 3 days.
+            Expected during initial bootstrap, but warrants investigation after 72h.
+            Check /api/v1/trading/validation/readiness for component breakdown.
+
+      - alert: DatasetMaturityUseful
+        expr: >
+          dataset_maturity_score >= 50
+          and dataset_maturity_score < 75
+        for: 0m
+        labels:
+          severity: info
+        annotations:
+          summary: "Dataset reached USEFUL maturity band (score={{ $value | printf \"%.0f\" }})"
+          description: >
+            dataset_maturity_score = {{ $value | printf "%.1f" }}.
+            Dataset is now statistically useful. Calibration and drift reports
+            are valid but should be treated with caution.
+
+      - alert: DatasetCalibrationReady
+        expr: >
+          dataset_maturity_score >= 75
+        for: 0m
+        labels:
+          severity: info
+        annotations:
+          summary: "Dataset reached CALIBRATION_READY maturity (score={{ $value | printf \"%.0f\" }})"
+          description: >
+            dataset_maturity_score = {{ $value | printf "%.1f" }}.
+            Dataset is calibration-ready. Confidence calibration slope and
+            signal drift analysis are now reliable.
+            Use /api/v1/trading/validation/readiness to confirm all criteria met.

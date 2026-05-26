@@ -93,6 +93,9 @@ groups:
     rules:
 
       # ── Regime diversity hypothesis validation ──────────────────────────────
+      # NOTE: signal_regime_entropy is emitted by poupi-crypto-volatile itself
+      # (not by data-core). These alerts will only fire when poupi-crypto-volatile
+      # exposes this metric at /metrics. Until then, alerts are silently inactive.
 
       - alert: VolatileMonoRegimePersistent
         expr: >
@@ -103,9 +106,16 @@ groups:
           runtime: volatile
         annotations:
           summary: "Volatile regime_entropy < 0.4 — hypothesis may be failing"
-          description: "regime_entropy = {{ $value | printf \"%.2f\" }}. Volatile runtime is not generating regime diversity. Evaluate after 14 days before declaring hypothesis failure."
+          description: >
+            regime_entropy = {{ $value | printf "%.2f" }}.
+            Volatile runtime is not generating regime diversity.
+            Evaluate after 14 days before declaring hypothesis failure.
+            If this alert never fires, verify poupi-crypto-volatile exposes signal_regime_entropy.
 
       # ── Outcome collection rate ─────────────────────────────────────────────
+      # NOTE: signal_outcome_closed_ratio and signal_replay_coverage are emitted
+      # by poupi-crypto-volatile, not data-core. data-core equivalent:
+      # use outcome_bootstrap_phase and dataset_maturity_score instead.
 
       - alert: VolatileLowOutcomeRate
         expr: >
@@ -116,7 +126,11 @@ groups:
           runtime: volatile
         annotations:
           summary: "Volatile outcome_closed_ratio < 20%"
-          description: "outcome_closed_ratio = {{ $value | printf \"%.1f%%\" }}. Less than 20% of replay events have closed outcomes. Expected to improve as positions accumulate over 14-30 days."
+          description: >
+            outcome_closed_ratio = {{ $value | printf "%.1f%%" }}.
+            Less than 20% of replay events have closed outcomes.
+            Expected to improve as positions accumulate over 14-30 days.
+            data-core alternative: dataset_maturity_score / outcome_bootstrap_phase.
 
       # ── Replay coverage ─────────────────────────────────────────────────────
 
@@ -129,4 +143,40 @@ groups:
           runtime: volatile
         annotations:
           summary: "Volatile replay_coverage < 30%"
-          description: "replay_coverage = {{ $value | printf \"%.1f%%\" }}. Dataset still immature — this is expected in the first 7 days. Re-evaluate at day 14."
+          description: >
+            replay_coverage = {{ $value | printf "%.1f%%" }}.
+            Dataset still immature — this is expected in the first 7 days.
+            Re-evaluate at day 14.
+            data-core alternative: /api/v1/trading/validation/readiness.
+
+      # ── data-core outcome pipeline (observable via data-core Prometheus) ────
+      # These use data-core metrics (not poupi-crypto-volatile) and fire immediately.
+
+      - alert: VolatileOutcomePipelineStalled
+        expr: >
+          outcome_pipeline_health_score < 30
+          and on() (outcome_bootstrap_phase == 0)
+        for: 15m
+        labels:
+          severity: warning
+          runtime: volatile
+        annotations:
+          summary: "data-core outcome pipeline degraded (affects volatile runtime)"
+          description: >
+            outcome_pipeline_health_score = {{ $value | printf "%.0f" }}/100.
+            The data-core outcome evaluation pipeline that feeds volatile runtime
+            is degraded. Volatile calibration data may be stale.
+
+      - alert: VolatileDatasetBootstrapping
+        expr: >
+          outcome_bootstrap_phase == 1
+        for: 0m
+        labels:
+          severity: info
+          runtime: volatile
+        annotations:
+          summary: "Volatile dataset in bootstrap phase — outcomes accumulating"
+          description: >
+            outcome_bootstrap_phase = 1.
+            Less than 50 outcomes evaluated. Volatile hypothesis cannot be assessed yet.
+            Expected for the first 2-5 days. Monitor dataset_maturity_score for progression.
