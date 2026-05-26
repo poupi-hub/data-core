@@ -8,7 +8,7 @@ Scope: infrastructure, operations, security, backups, deployment, observability,
 
 PARTIAL.
 
-The platform is mostly cloud-first in practice, but not yet mature enough to call READY. The main blockers are the unresolved `poupi-baby-worker` runtime decision, local/frontend reproducibility gaps, and remaining DNS hygiene for `coolify.poupi.com`.
+The platform is mostly cloud-first in practice, but not yet mature enough to call READY. Public database, Prometheus, Traefik dashboard, Coolify realtime and manual crypto API source binds have been removed or restricted. The main blockers are the unresolved `poupi-baby-worker` runtime decision, local/frontend reproducibility gaps, missing alerting on backup/restore-test failure, and remaining DNS hygiene for `coolify.poupi.com`.
 
 ## Current State
 
@@ -31,7 +31,7 @@ The notebook is no longer the primary runtime. Local Docker was not reachable du
 | --- | --- | --- | --- |
 | Public Postgres | source bind removed; `poupi-crypto-db-1` now exposes only container port `5432/tcp` | residual risk low; firewall remains as defense in depth | keep Compose `db` service explicit and avoid reintroducing `ports` |
 | Public Prometheus | source bind removed; `prometheus` now exposes only container port `9090/tcp` | residual risk low; firewall remains as defense in depth | keep Prometheus internal-only |
-| Public Traefik dashboard/surface | process still listens on `0.0.0.0:8080`, but host firewall now blocks external access | admin/control plane exposure if firewall regresses | disable public dashboard or restrict at source |
+| Public Traefik dashboard/surface | source bind removed; no host listener on `8080` in latest validation | residual risk low; Coolify/proxy updates could reintroduce bind | keep source config without public `8080` and validate after updates |
 | Backup automation | daily backup and weekly restore-test timers are active and validated | residual risk is monitoring/alerting of failures | add alerting for failed systemd units |
 | poupi-baby worker not running | no running `poupi-baby-worker` container or monitoring alias; old compose worker is exited and points at a separate Compose Postgres/Redis stack | worker runtime/queue processing may be absent unless handled elsewhere; starting the old worker risks split-brain queues/data | do not start old Compose worker; deploy a Coolify-managed worker using the same production DB/Redis env if worker processing is required |
 
@@ -41,7 +41,7 @@ The notebook is no longer the primary runtime. Local Docker was not reachable du
 | --- | --- | --- |
 | Coolify public surfaces | `8080` and `6001/6002` source binds removed; `8000` now bound to `127.0.0.1` only | residual risk low; keep validating after Coolify updates |
 | Runtime containers without healthcheck | scheduler, worker, poupi-baby, poupi-jobs, alertmanager, prometheus | add healthchecks or external synthetic checks |
-| Prometheus restart policy | `restart=no` | switch to `unless-stopped` in managed compose |
+| Prometheus restart policy | recreated with `unless-stopped` | preserve restart policy in managed compose |
 | Local secrets | `.env` and `.env.local` files exist locally | migrate to server-managed secrets, keep examples locally |
 | Frontend no Git root | `poupi-frontend` has no `.git` root detected | place under GitHub and CI/CD |
 | Frontend localhost fallbacks | many `http://localhost:8000/3001` fallbacks | require env at build/runtime and fail closed in production |
@@ -105,6 +105,7 @@ Public edge should be Traefik on `80/443`. Administrative and data services shou
 - `INCIDENT_RESPONSE.md`
 - `DEPLOY_AND_ROLLBACK.md`
 - `GO_NO_GO_CHECKLIST.md`
+- `FRONTEND_STABILIZATION_PLAN.md`
 - `scripts/remote-health.sh`
 - `scripts/remote-logs.sh`
 - `scripts/remote-deploy.sh`

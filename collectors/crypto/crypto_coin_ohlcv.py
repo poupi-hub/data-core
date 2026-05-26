@@ -10,7 +10,7 @@ from domains.crypto_coin.core.execution.exchange_connector import ExchangeConnec
 
 logger = logging.getLogger(__name__)
 
-DEFAULT_SYMBOLS = ["BTC/USDT", "ETH/USDT", "SOL/USDT", "BNB/USDT", "ADA/USDT"]
+DEFAULT_SYMBOLS = ["BTC/USDT", "ETH/USDT", "SOL/USDT", "BNB/USDT", "ADA/USDT", "DOGE/USDT", "XRP/USDT"]
 DEFAULT_TIMEFRAMES = ["15m", "1h"]
 
 

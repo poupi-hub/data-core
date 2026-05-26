@@ -6,7 +6,7 @@ Generated from operational evidence on 2026-05-26. This document is infrastructu
 
 Classification: PARTIAL.
 
-The Poupi runtime is already mostly server-side, but the platform is not yet fully hardened or reproducible. Critical public exposure and backup validation gaps remain.
+The Poupi runtime is already mostly server-side. The initial critical public exposure and backup validation gaps have been reduced: public database, Prometheus, Traefik dashboard, Coolify realtime, Coolify direct admin and manual crypto API source binds were removed or restricted, and backup plus restore-test automation is active. The remaining blockers are reproducibility, frontend/env hygiene, worker ownership, backup failure alerting, and DNS cleanup.
 
 ## Evidence Snapshot
 
@@ -124,7 +124,7 @@ Confirmed:
 
 ## Observability Findings
 
-Prometheus is healthy, but it is publicly exposed.
+Prometheus is healthy and is no longer publicly exposed through a host port.
 
 Current target status from Prometheus:
 
