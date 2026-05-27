@@ -78,12 +78,12 @@ adaptive_policy_boost_blocked_gauge = Gauge(
 )
 
 adaptive_policy_safe_mode_gauge = Gauge(
-    "adaptive_policy_safe_mode",
+    "adaptive_policy_safe_mode_state",
     "1 if the latest contract has safe_mode=True, 0 otherwise",
 )
 
 adaptive_policy_fail_closed_gauge = Gauge(
-    "adaptive_policy_fail_closed",
+    "adaptive_policy_fail_closed_state",
     "1 if the latest contract has fail_closed=True, 0 otherwise",
 )
 

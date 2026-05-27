@@ -136,7 +136,7 @@
           ]
         }
       },
-      "targets": [{ "expr": "adaptive_policy_safe_mode", "legendFormat": "Safe Mode" }]
+      "targets": [{ "expr": "adaptive_policy_safe_mode_state", "legendFormat": "Safe Mode" }]
     },
     {
       "id": 7,

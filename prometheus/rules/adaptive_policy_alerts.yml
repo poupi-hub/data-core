@@ -72,7 +72,7 @@ groups:
 
       - alert: AdaptivePolicyFailClosed
         expr: |
-          adaptive_policy_fail_closed == 1
+          adaptive_policy_fail_closed_state == 1
         for: 2m
         labels:
           severity: critical
@@ -104,7 +104,7 @@ groups:
 
       - alert: AdaptivePolicySafeModeSustained
         expr: |
-          adaptive_policy_safe_mode == 1
+          adaptive_policy_safe_mode_state == 1
         for: 30m
         labels:
           severity: warning
