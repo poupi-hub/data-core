@@ -1,4 +1,3 @@
-import asyncio
 import logging
 import time
 import uuid
@@ -6,6 +5,7 @@ from datetime import datetime, timezone
 
 from app.modules.real_estate.collectors import ApolarCollector
 from database.session import SessionLocal
+from scheduler.async_runner import run_async
 
 logger = logging.getLogger(__name__)
 
@@ -49,7 +49,7 @@ def run_real_estate_daily_collection() -> None:
             db.close()
 
     try:
-        asyncio.run(_run())
+        run_async(_run())
     except Exception as exc:
         error = exc
         raise

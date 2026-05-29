@@ -1,4 +1,3 @@
-import asyncio
 import logging
 import time
 import uuid
@@ -15,6 +14,7 @@ from app.raw.models import RawCollection
 from core.config import settings
 from database.models import CollectionRun, CollectionTarget, CollectorError, RunStatus
 from database.session import SessionLocal
+from scheduler.async_runner import run_async
 from workers.collector_worker import run_collector_by_name
 
 logger = logging.getLogger(__name__)
@@ -76,7 +76,7 @@ def run_collector_job(collector_name: str) -> None:
             db.close()
 
     logger.info("Starting scheduled collector", extra={"collector": collector_name})
-    asyncio.run(_run())
+    run_async(_run())
 
 
 def collect_raw_job(collector_name: str) -> None:
@@ -148,10 +148,20 @@ def normalize_job(module: str | None = None, limit: int = 100) -> None:
 
 MODULE_COLLECTORS = {
     "ecommerce": ["ecommerce.generic_product"],
-    "real_estate": ["real_estate.generic_listing"],
+    "real_estate": [
+        "real_estate.zap_imoveis",
+        "real_estate.viva_real",
+        "real_estate.olx_imoveis",
+        "real_estate.imovelweb",
+    ],
     "sports_odds": ["sports_betting.generic_odds"],
     "crypto": ["crypto.generic_price", "crypto.crypto_coin_ohlcv"],
     "trading": [],
+    "jobs": [
+        "jobs.gupy",
+        "jobs.greenhouse",
+        "jobs.lever",
+    ],
 }
 
 SOURCE_COLLECTORS = {
@@ -160,6 +170,15 @@ SOURCE_COLLECTORS = {
     "generic_bookmaker": "sports_betting.generic_odds",
     "generic_exchange": "crypto.generic_price",
     "crypto_coin_exchange": "crypto.crypto_coin_ohlcv",
+    # Real Estate HTTP (produção)
+    "zap_imoveis": "real_estate.zap_imoveis",
+    "viva_real": "real_estate.viva_real",
+    "olx_imoveis": "real_estate.olx_imoveis",
+    "imovelweb": "real_estate.imovelweb",
+    # Jobs (produção)
+    "gupy": "jobs.gupy",
+    "greenhouse": "jobs.greenhouse",
+    "lever": "jobs.lever",
 }
 
 DEFAULT_COLLECTION_TARGETS = [
@@ -475,6 +494,66 @@ def run_crypto_collectors_job(source: str | None = None) -> None:
 
 def run_trading_collectors_job(source: str | None = None) -> None:
     run_module_collectors_job("trading", source=source)
+
+
+def run_jobs_collectors_job(source: str | None = None) -> None:
+    """Scheduled entry-point para coleta de vagas de emprego.
+
+    Executa os collectors: jobs.gupy, jobs.greenhouse, jobs.lever.
+    Salva em raw_collections (module=jobs). Raw storage only — sem normalização.
+    """
+    run_id = str(uuid.uuid4())
+    started_at = time.monotonic()
+    job_source = source or "jobs"
+    logger.info(
+        "Job run started",
+        extra={"run_id": run_id, "job": "run_jobs_collectors_job", "domain": "jobs", "source": job_source},
+    )
+    error: Exception | None = None
+    try:
+        run_module_collectors_job("jobs", source=source)
+    except Exception as exc:
+        error = exc
+        raise
+    finally:
+        _log_job_run(
+            job_name="run_jobs_collectors_job",
+            run_id=run_id,
+            domain="jobs",
+            source=job_source,
+            started_at=started_at,
+            error=error,
+        )
+
+
+def run_real_estate_http_collectors_job(source: str | None = None) -> None:
+    """Scheduled entry-point para coleta de imóveis via HTTP (Zap, VivaReal, OLX, ImovelWeb).
+
+    Complementa o run_real_estate_daily_collection (Playwright/Apolar).
+    Salva em raw_collections (module=real_estate). Raw storage only.
+    """
+    run_id = str(uuid.uuid4())
+    started_at = time.monotonic()
+    job_source = source or "real_estate.http"
+    logger.info(
+        "Job run started",
+        extra={"run_id": run_id, "job": "run_real_estate_http_collectors_job", "domain": "real_estate", "source": job_source},
+    )
+    error: Exception | None = None
+    try:
+        run_module_collectors_job("real_estate", source=source)
+    except Exception as exc:
+        error = exc
+        raise
+    finally:
+        _log_job_run(
+            job_name="run_real_estate_http_collectors_job",
+            run_id=run_id,
+            domain="real_estate",
+            source=job_source,
+            started_at=started_at,
+            error=error,
+        )
 
 
 def ensure_default_collection_targets() -> int:

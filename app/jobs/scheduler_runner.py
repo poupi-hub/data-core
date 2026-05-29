@@ -3,6 +3,7 @@ import time
 
 from logs.config import configure_logging
 from app.runtime.scheduler_watchdog import append_scheduler_lifecycle_event, start_scheduler_watchdog_probe
+from scheduler.async_runner import shutdown_loop
 from scheduler.service import create_scheduler, start_scheduler, stop_scheduler
 
 
@@ -29,6 +30,7 @@ def main() -> None:
         append_scheduler_lifecycle_event("scheduler_stopping")
         watchdog_stop.set()
         stop_scheduler(scheduler)
+        shutdown_loop()
         append_scheduler_lifecycle_event("scheduler_stopped")
 
 

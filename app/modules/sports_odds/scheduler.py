@@ -1,8 +1,8 @@
-import asyncio
 import logging
 
 from app.modules.sports_odds.collectors import NbaOddsCollector
 from database.session import SessionLocal
+from scheduler.async_runner import run_async
 
 logger = logging.getLogger(__name__)
 
@@ -16,4 +16,4 @@ def run_sports_odds_recurring_collection() -> None:
         finally:
             db.close()
 
-    asyncio.run(_run())
+    run_async(_run())

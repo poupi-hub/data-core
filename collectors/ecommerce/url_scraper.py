@@ -131,8 +131,14 @@ class EcommerceURLScraper:
     # ------------------------------------------------------------------
 
     def collect_targets(self, targets: list[Any]) -> dict[str, int]:
-        """Synchronous entry point — runs async collection in a new event loop."""
-        return asyncio.run(self._collect_all(targets))
+        """Synchronous entry point — dispatches to the shared persistent event loop.
+
+        Uses ``scheduler.async_runner.run_async`` instead of ``asyncio.run()`` so
+        that repeated scraper calls (every 2 h from APScheduler) reuse the same
+        event loop rather than creating and leaking a new one each time.
+        """
+        from scheduler.async_runner import run_async  # local import to keep collectors/ decoupled
+        return run_async(self._collect_all(targets))
 
     # ------------------------------------------------------------------
     # Async collection
