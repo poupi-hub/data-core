@@ -2,36 +2,82 @@ import logging
 import time
 
 from apscheduler.events import EVENT_JOB_ERROR, EVENT_JOB_EXECUTED, EVENT_JOB_MISSED
+from apscheduler.job import Job
+from apscheduler.jobstores.sqlalchemy import SQLAlchemyJobStore
 from apscheduler.schedulers.background import BackgroundScheduler
+from apscheduler.schedulers.base import STATE_PAUSED
 
+from app.auto_healing.scheduler import effective_auto_healing_interval_minutes
+from app.runtime.scheduler_heartbeat import boot_heartbeat, record_job_execution
+from app.runtime.scheduler_watchdog import record_scheduler_execution_event
+from app.telegram_summary.jobs import daily_longitudinal_summary_job
 from collectors.registry import registry
 from core.config import settings
-from app.modules.real_estate.scheduler import run_real_estate_daily_collection
-from app.runtime.scheduler_heartbeat import boot_heartbeat, record_job_execution
+from scheduler.job_wrappers import (
+    run_alert_webhook_reliable,
+    run_analytics_reliable,
+    run_auto_healing_watchdog_reliable,
+    run_daily_snapshot_with_retry,
+    run_data_retention_reliable,
+    run_dataset_integrity_with_retry,
+    run_dataset_quality_crypto_reliable,
+    run_ecommerce_url_targets_reliable,
+    run_hourly_operational_summary_with_retry,
+    run_normalize_reliable,
+    run_operational_watchdog_with_retry,
+    run_poupi_baby_coverage_intelligence_reliable,
+    run_real_estate_daily_reliable,
+    run_real_estate_enrichment_with_retry,
+    run_signal_outcomes_reliable,
+    run_six_hour_quant_summary_with_retry,
+    run_source_health_with_retry,
+    run_watchdog_heartbeat_with_retry,
+)
 from scheduler.jobs import (
-    alert_webhook_job,
-    analytics_job,
     cleanup_stale_runs_job,
     collect_raw_job,
-    data_retention_job,
-    dataset_quality_crypto_job,
-    normalize_job,
-    operational_watchdog_job,
-    run_ecommerce_url_targets_job,
+    run_jobs_collectors_job,  # noqa: F401 — disponível para trigger manual via API
+    run_real_estate_http_collectors_job,  # noqa: F401 — disponível para trigger manual via API
     scheduler_heartbeat_job,
-    signal_outcomes_job,
-    watchdog_heartbeat_job,
 )
-from app.telegram_summary.jobs import (
-    daily_longitudinal_summary_job,
-    hourly_operational_summary_job,
-    six_hour_quant_summary_job,
-)
-from scheduler.retry import with_retry
-from app.runtime.scheduler_reliability import SchedulerReliabilityEngine
-from app.runtime.scheduler_watchdog import record_scheduler_execution_event
 
 logger = logging.getLogger(__name__)
+
+
+def mask_url(url: str) -> str:
+    if "@" not in url or "://" not in url:
+        return url
+    scheme, rest = url.split("://", 1)
+    _, host = rest.rsplit("@", 1)
+    return f"{scheme}://***:***@{host}"
+
+
+def create_scheduler_jobstores() -> dict[str, SQLAlchemyJobStore]:
+    jobstore_url = settings.scheduler_jobstore_url or settings.database_url
+    return {
+        "default": SQLAlchemyJobStore(
+            url=jobstore_url,
+            tablename=settings.scheduler_jobstore_table,
+        )
+    }
+
+
+def create_configured_scheduler() -> BackgroundScheduler:
+    if not settings.scheduler_jobstore_enabled:
+        return create_scheduler()
+
+    jobstore_url = settings.scheduler_jobstore_url or settings.database_url
+    logger.info(
+        "Scheduler SQLAlchemyJobStore enabled",
+        extra={
+            "jobstore_url": mask_url(jobstore_url),
+            "jobstore_table": settings.scheduler_jobstore_table,
+        },
+    )
+    return create_scheduler(
+        jobstores=create_scheduler_jobstores(),
+        start_paused_for_persistence=True,
+    )
 
 
 def _with_heartbeat(job_name: str, fn):
@@ -58,23 +104,56 @@ def _with_heartbeat(job_name: str, fn):
         except Exception as exc:
             logger.warning("scheduler_heartbeat: record failed for %s: %s", job_name, exc)
 
-# Nota: run_poupi_legacy_targets_job foi removido — substituído por run_ecommerce_url_targets_job (Phase B).
+
+# Nota: run_poupi_legacy_targets_job foi removido.
+# Substituído por run_ecommerce_url_targets_job (Phase B).
 # Nota: run_sports_odds_recurring_collection foi removido do import — ver comentário abaixo.
 
 
-def create_scheduler() -> BackgroundScheduler:
+def _add_job_preserving_persisted(scheduler: BackgroundScheduler, *args, **kwargs) -> Job:
+    job_id = kwargs.get("id")
+    kwargs.setdefault("misfire_grace_time", settings.scheduler_misfire_grace_seconds)
+    if scheduler.running and job_id:
+        existing = scheduler.get_job(job_id)
+        if existing is not None:
+            updates = {
+                key: value
+                for key, value in {
+                    "coalesce": kwargs.get("coalesce"),
+                    "max_instances": kwargs.get("max_instances"),
+                    "misfire_grace_time": kwargs.get("misfire_grace_time"),
+                }.items()
+                if value is not None and getattr(existing, key) != value
+            }
+            if updates:
+                existing.modify(**updates)
+            logger.debug("Scheduler job already persisted; preserving next_run_time: %s", job_id)
+            return scheduler.get_job(job_id) or existing
+    kwargs.setdefault("replace_existing", not scheduler.running)
+    return scheduler.add_job(*args, **kwargs)
+
+
+def create_scheduler(
+    *,
+    jobstores: dict | None = None,
+    start_paused_for_persistence: bool = False,
+) -> BackgroundScheduler:
     # ── Phase 2: boot heartbeat (records scheduler_started_at once) ───────────
     try:
         boot_heartbeat()
     except Exception as exc:
         logger.warning("scheduler_heartbeat: boot failed (non-fatal): %s", exc)
 
-    scheduler = BackgroundScheduler(timezone=settings.scheduler_timezone)
+    scheduler_kwargs = {"timezone": settings.scheduler_timezone}
+    if jobstores is not None:
+        scheduler_kwargs["jobstores"] = jobstores
+    scheduler = BackgroundScheduler(**scheduler_kwargs)
     scheduler.add_listener(
         _record_scheduler_drift,
         EVENT_JOB_EXECUTED | EVENT_JOB_ERROR | EVENT_JOB_MISSED,
     )
-    reliability = SchedulerReliabilityEngine()
+    if start_paused_for_persistence:
+        scheduler.start(paused=True)
 
     if settings.scheduler_collectors_enabled:
         skipped = []
@@ -85,7 +164,8 @@ def create_scheduler() -> BackgroundScheduler:
                 # Ver: collectors/base.py CollectorMetadata.schedulable
                 skipped.append(metadata.name)
                 continue
-            scheduler.add_job(
+            _add_job_preserving_persisted(
+                scheduler,
                 collect_raw_job,
                 "interval",
                 minutes=metadata.default_interval_minutes,
@@ -101,7 +181,8 @@ def create_scheduler() -> BackgroundScheduler:
                 ", ".join(skipped),
             )
 
-    scheduler.add_job(
+    _add_job_preserving_persisted(
+        scheduler,
         cleanup_stale_runs_job,
         "interval",
         minutes=15,
@@ -111,11 +192,9 @@ def create_scheduler() -> BackgroundScheduler:
         coalesce=True,
     )
 
-    scheduler.add_job(
-        lambda: with_retry(
-            lambda: reliability.run("alert_webhook_job", alert_webhook_job, priority="LOW"),
-            job_name="alert_webhook_job",
-        ),
+    _add_job_preserving_persisted(
+        scheduler,
+        run_alert_webhook_reliable,
         "interval",
         hours=1,
         id="maintenance:alert_webhook",
@@ -124,8 +203,9 @@ def create_scheduler() -> BackgroundScheduler:
         coalesce=True,
     )
 
-    scheduler.add_job(
-        lambda: reliability.run("data_retention_job", data_retention_job, priority="LOW"),
+    _add_job_preserving_persisted(
+        scheduler,
+        run_data_retention_reliable,
         "cron",
         day_of_week="sun",
         hour=2,
@@ -137,21 +217,9 @@ def create_scheduler() -> BackgroundScheduler:
     )
 
     if settings.scheduler_pipeline_enabled:
-        pipeline_module = settings.scheduler_pipeline_module
-        scheduler.add_job(
-            lambda: _with_heartbeat(
-                "normalize_job",
-                lambda: with_retry(
-                    lambda: reliability.run(
-                        "normalize_job",
-                        lambda limit: normalize_job(module=pipeline_module, limit=limit),
-                        priority="HIGH",
-                        supports_limit=True,
-                        default_limit=settings.scheduler_reliability_base_batch_size,
-                    ),
-                    job_name="normalize_job",
-                ),
-            ),
+        _add_job_preserving_persisted(
+            scheduler,
+            run_normalize_reliable,
             "interval",
             minutes=15,
             id="pipeline:normalize",
@@ -159,20 +227,9 @@ def create_scheduler() -> BackgroundScheduler:
             max_instances=1,
             coalesce=True,
         )
-        scheduler.add_job(
-            lambda: _with_heartbeat(
-                "analytics_job",
-                lambda: with_retry(
-                    lambda: reliability.run(
-                        "analytics_job",
-                        lambda limit: analytics_job(module=pipeline_module, limit=limit),
-                        priority="NORMAL",
-                        supports_limit=True,
-                        default_limit=settings.scheduler_reliability_base_batch_size,
-                    ),
-                    job_name="analytics_job",
-                ),
-            ),
+        _add_job_preserving_persisted(
+            scheduler,
+            run_analytics_reliable,
             "interval",
             minutes=60,
             id="pipeline:analytics",
@@ -183,14 +240,9 @@ def create_scheduler() -> BackgroundScheduler:
 
     if settings.scheduler_domain_jobs_enabled:
         # Ecommerce: scraping real de farmácias VTEX (17 targets ativos)
-        scheduler.add_job(
-            lambda: reliability.run(
-                "run_ecommerce_url_targets_job",
-                run_ecommerce_url_targets_job,
-                priority="NORMAL",
-                supports_limit=True,
-                default_limit=settings.scheduler_reliability_base_batch_size,
-            ),
+        _add_job_preserving_persisted(
+            scheduler,
+            run_ecommerce_url_targets_reliable,
             "interval",
             hours=2,
             id="ecommerce:url_scraper_targets",
@@ -201,12 +253,9 @@ def create_scheduler() -> BackgroundScheduler:
 
         # Imóveis: coleta diária via Playwright (ApolarCollector)
         # Requer Playwright instalado no container do scheduler.
-        scheduler.add_job(
-            lambda: reliability.run(
-                "run_real_estate_daily_collection",
-                run_real_estate_daily_collection,
-                priority="LOW",
-            ),
+        _add_job_preserving_persisted(
+            scheduler,
+            run_real_estate_daily_reliable,
             "cron",
             hour=3,
             minute=30,
@@ -215,6 +264,12 @@ def create_scheduler() -> BackgroundScheduler:
             max_instances=1,
             coalesce=True,
         )
+
+        # Imóveis HTTP (Zap, VivaReal, OLX, ImovelWeb) e Jobs (Gupy, Greenhouse, Lever)
+        # são agendados via scheduler_collectors_enabled — cada collector auto-registra
+        # seu próprio job via registry.all() com seu default_interval_minutes.
+        # run_real_estate_http_collectors_job e run_jobs_collectors_job ficam disponíveis
+        # para triggers manuais via API apenas.
 
         # Sports odds: DESATIVADO — NbaOddsCollector usa base_url="https://example.com"
         # (sem endpoints reais configurados). Reativar quando uma fonte real for integrada.
@@ -238,7 +293,8 @@ def create_scheduler() -> BackgroundScheduler:
         )
 
     # ── Phase 2: Scheduler Proof-of-Execution Heartbeat (every 5 min) ────────
-    scheduler.add_job(
+    _add_job_preserving_persisted(
+        scheduler,
         scheduler_heartbeat_job,
         "interval",
         minutes=5,
@@ -250,8 +306,9 @@ def create_scheduler() -> BackgroundScheduler:
 
     # ── Operational Watchdog ──────────────────────────────────────────────
     if settings.watchdog_enabled:
-        scheduler.add_job(
-            lambda: with_retry(operational_watchdog_job, job_name="operational_watchdog_job"),
+        _add_job_preserving_persisted(
+            scheduler,
+            run_operational_watchdog_with_retry,
             "interval",
             minutes=30,
             id="platform:operational_watchdog",
@@ -259,8 +316,9 @@ def create_scheduler() -> BackgroundScheduler:
             max_instances=1,
             coalesce=True,
         )
-        scheduler.add_job(
-            lambda: with_retry(watchdog_heartbeat_job, job_name="watchdog_heartbeat_job"),
+        _add_job_preserving_persisted(
+            scheduler,
+            run_watchdog_heartbeat_with_retry,
             "interval",
             hours=settings.watchdog_heartbeat_hours,
             id="platform:watchdog_heartbeat",
@@ -270,11 +328,24 @@ def create_scheduler() -> BackgroundScheduler:
         )
 
     # ── Telegram Longitudinal Summary (Phase 11) ──────────────────────────────
+    # Auto-Healing Watchdog (safe-by-default; job no-ops while disabled)
+    _add_job_preserving_persisted(
+        scheduler,
+        run_auto_healing_watchdog_reliable,
+        "interval",
+        minutes=effective_auto_healing_interval_minutes(),
+        id="platform:auto_healing_watchdog",
+        replace_existing=True,
+        max_instances=1,
+        coalesce=True,
+    )
+
     # Master switch: settings.telegram_summary_enabled (default False).
     # Jobs always register so toggling the flag at runtime takes effect next fire;
     # each job checks the flag itself and no-ops when disabled.
-    scheduler.add_job(
-        lambda: with_retry(hourly_operational_summary_job, job_name="hourly_operational_summary_job"),
+    _add_job_preserving_persisted(
+        scheduler,
+        run_hourly_operational_summary_with_retry,
         "interval",
         hours=1,
         id="telegram_summary:hourly_operational",
@@ -282,8 +353,9 @@ def create_scheduler() -> BackgroundScheduler:
         max_instances=1,
         coalesce=True,
     )
-    scheduler.add_job(
-        lambda: with_retry(six_hour_quant_summary_job, job_name="six_hour_quant_summary_job"),
+    _add_job_preserving_persisted(
+        scheduler,
+        run_six_hour_quant_summary_with_retry,
         "interval",
         hours=6,
         id="telegram_summary:six_hour_quant",
@@ -291,7 +363,8 @@ def create_scheduler() -> BackgroundScheduler:
         max_instances=1,
         coalesce=True,
     )
-    scheduler.add_job(
+    _add_job_preserving_persisted(
+        scheduler,
         daily_longitudinal_summary_job,
         "cron",
         hour=settings.telegram_summary_longitudinal_cron_hour,
@@ -307,11 +380,9 @@ def create_scheduler() -> BackgroundScheduler:
     # normalized candles to score; but quality scoring itself is lightweight enough
     # to run alongside any other pipeline job).
     if settings.scheduler_pipeline_enabled:
-        scheduler.add_job(
-            lambda: _with_heartbeat(
-                "dataset_quality_crypto_job",
-                lambda: with_retry(dataset_quality_crypto_job, job_name="dataset_quality_crypto_job"),
-            ),
+        _add_job_preserving_persisted(
+            scheduler,
+            run_dataset_quality_crypto_reliable,
             "interval",
             minutes=30,
             id="quality:dataset_quality_crypto",
@@ -319,11 +390,19 @@ def create_scheduler() -> BackgroundScheduler:
             max_instances=1,
             coalesce=True,
         )
-        scheduler.add_job(
-            lambda: _with_heartbeat(
-                "signal_outcomes_job",
-                lambda: with_retry(signal_outcomes_job, job_name="signal_outcomes_job"),
-            ),
+        _add_job_preserving_persisted(
+            scheduler,
+            run_poupi_baby_coverage_intelligence_reliable,
+            "interval",
+            minutes=30,
+            id="quality:poupi_baby_coverage_intelligence",
+            replace_existing=True,
+            max_instances=1,
+            coalesce=True,
+        )
+        _add_job_preserving_persisted(
+            scheduler,
+            run_signal_outcomes_reliable,
             "interval",
             minutes=60,
             id="quality:signal_outcomes",
@@ -331,6 +410,55 @@ def create_scheduler() -> BackgroundScheduler:
             max_instances=1,
             coalesce=True,
         )
+
+    # ── Real Estate enrichment (QUALITY PASS) ────────────────────────────────
+    # run_real_estate_enrichment_job : a cada 2h — extrai structured_fields
+    _add_job_preserving_persisted(
+        scheduler,
+        run_real_estate_enrichment_with_retry,
+        "interval",
+        hours=2,
+        id="real_estate:field_enrichment",
+        replace_existing=True,
+        max_instances=1,
+        coalesce=True,
+    )
+
+    # ── FASE 3/4/5 — Source Health, Dataset Integrity, Daily Snapshots ───────
+    # compute_source_health_job   : a cada 4h — saude operacional por coletor
+    # compute_dataset_integrity_job : a cada 6h — scores de integridade por dataset
+    # take_daily_snapshot_job     : 1x/dia (00:30 UTC) — snapshot longitudinal
+    _add_job_preserving_persisted(
+        scheduler,
+        run_source_health_with_retry,
+        "interval",
+        hours=4,
+        id="observability:source_health",
+        replace_existing=True,
+        max_instances=1,
+        coalesce=True,
+    )
+    _add_job_preserving_persisted(
+        scheduler,
+        run_dataset_integrity_with_retry,
+        "interval",
+        hours=6,
+        id="observability:dataset_integrity",
+        replace_existing=True,
+        max_instances=1,
+        coalesce=True,
+    )
+    _add_job_preserving_persisted(
+        scheduler,
+        run_daily_snapshot_with_retry,
+        "cron",
+        hour=0,
+        minute=30,
+        id="observability:daily_snapshot",
+        replace_existing=True,
+        max_instances=1,
+        coalesce=True,
+    )
 
     return scheduler
 
@@ -351,10 +479,25 @@ def _record_scheduler_drift(event: object) -> None:
         scheduled_run_time=scheduled_run_time,
         exception=str(exception) if exception else None,
     )
+    # Return freed memory to the OS after each job. Python's pymalloc pool
+    # retains pages indefinitely; calling gc + malloc_trim releases them.
+    # With PYTHONMALLOC=malloc (set in scheduler env) this covers all allocations.
+    import gc
+    import ctypes
+    gc.collect()
+    try:
+        ctypes.CDLL("libc.so.6").malloc_trim(0)
+    except Exception:
+        pass
 
 
 def start_scheduler(scheduler: BackgroundScheduler) -> None:
-    if settings.scheduler_enabled and not scheduler.running:
+    if not settings.scheduler_enabled:
+        return
+    if scheduler.running and scheduler.state == STATE_PAUSED:
+        scheduler.resume()
+        logger.info("Scheduler resumed")
+    elif not scheduler.running:
         scheduler.start()
         logger.info("Scheduler started")
 

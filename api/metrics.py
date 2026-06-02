@@ -1014,6 +1014,26 @@ analytics_last_success_timestamp = Gauge(
     "Unix timestamp of the latest successful analytics pipeline run.",
     ["module"],
 )
+analytics_freshness_seconds = Gauge(
+    "analytics_freshness_seconds",
+    "Seconds since the latest successful analytics pipeline run (-1 = never ran).",
+    ["module"],
+)
+analytics_backlog = Gauge(
+    "analytics_backlog",
+    "Current normalized records awaiting analytics processing.",
+    ["module"],
+)
+analytics_last_success = Gauge(
+    "analytics_last_success",
+    "Unix timestamp of the latest successful analytics pipeline run.",
+    ["module"],
+)
+analytics_recovery_duration_seconds = Gauge(
+    "analytics_recovery_duration_seconds",
+    "Duration of the latest successful or partial analytics scheduler run.",
+    ["module"],
+)
 
 
 def _db_scalar(fn, default: float = 0.0) -> float:
@@ -1050,7 +1070,7 @@ def _wire_operational_truth_metrics() -> None:
     from app.raw.models import RawCollection
     from database.session import SessionLocal
 
-    modules = ("crypto", "ecommerce", "real_estate", "sports_odds", "trading")
+    modules = ("crypto", "ecommerce", "real_estate", "sports_odds", "trading", "jobs")
 
     def with_db(query_fn):
         db = SessionLocal()
@@ -1151,6 +1171,72 @@ def _wire_operational_truth_metrics() -> None:
                 )
             )
         )
+        analytics_last_success.labels(module=module).set_function(
+            lambda module=module: _db_scalar(
+                lambda: with_db(
+                    lambda db: _dt_epoch(
+                        db.query(func.max(PipelineRun.finished_at))
+                        .filter(
+                            PipelineRun.domain == module,
+                            PipelineRun.stage == "analytics",
+                            PipelineRun.status.in_(["success", "partial"]),
+                        )
+                        .scalar()
+                    )
+                )
+            )
+        )
+        analytics_freshness_seconds.labels(module=module).set_function(
+            lambda module=module: _db_scalar(
+                lambda: with_db(
+                    lambda db: (
+                        -1.0
+                        if (
+                            _last := _dt_epoch(
+                                db.query(func.max(PipelineRun.finished_at))
+                                .filter(
+                                    PipelineRun.domain == module,
+                                    PipelineRun.stage == "analytics",
+                                    PipelineRun.status.in_(["success", "partial"]),
+                                )
+                                .scalar()
+                            )
+                        )
+                        <= 0
+                        else max(0.0, time.time() - _last)
+                    )
+                ),
+                default=-1.0,
+            )
+        )
+        analytics_recovery_duration_seconds.labels(module=module).set_function(
+            lambda module=module: _db_scalar(
+                lambda: with_db(
+                    lambda db: (
+                        db.query(PipelineRun.duration_seconds)
+                        .filter(
+                            PipelineRun.domain == module,
+                            PipelineRun.stage == "analytics",
+                            PipelineRun.status.in_(["success", "partial"]),
+                            PipelineRun.duration_seconds.is_not(None),
+                        )
+                        .order_by(PipelineRun.finished_at.desc().nullslast())
+                        .limit(1)
+                        .scalar()
+                    )
+                )
+            )
+        )
+        if module in normalized_models:
+            analytics_backlog.labels(module=module).set_function(
+                lambda module=module: _db_scalar(
+                    lambda: with_db(
+                        lambda db: db.query(func.count(normalized_models[module].id))
+                        .filter(normalized_models[module].analytics_status == "pending")
+                        .scalar()
+                    )
+                )
+            )
         if module in normalized_models:
             normalization_lag_seconds.labels(module=module).set_function(
                 lambda module=module: _db_scalar(
@@ -1299,7 +1385,7 @@ def _wire_reliability_metrics() -> None:
     scheduler_execution_drift_seconds.set_function(_exec_drift)
 
     # ── Queue lag (DB-backed, evaluated at scrape time) ───────────────────────
-    _q_modules = ("ecommerce", "crypto", "real_estate", "trading")
+    _q_modules = ("ecommerce", "crypto", "real_estate", "trading", "jobs")
 
     def _with_db(fn):
         from database.session import SessionLocal as _SL
@@ -1450,4 +1536,245 @@ outcome_eval_duration_seconds = Histogram(
     "outcome_eval_duration_seconds",
     "Wall-clock duration of a full SignalOutcomeTracker.run() call in seconds.",
     buckets=[0.1, 0.5, 1.0, 2.0, 5.0, 10.0, 30.0, 60.0, 120.0],
+)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# FASE 6 — Dataset Observability (Jobs + Real Estate)
+# ─────────────────────────────────────────────────────────────────────────────
+
+# ── Jobs metrics ──────────────────────────────────────────────────────────────
+
+jobs_records_total = Gauge(
+    "jobs_records_total",
+    "Total de registros de vagas por fonte na tabela raw_collections.",
+    ["source"],
+)
+
+jobs_freshness_score = Gauge(
+    "jobs_freshness_score",
+    "Score de frescor do dataset de vagas por fonte (0-100). "
+    "Calculado com base na idade dos registros vs janela esperada.",
+    ["source"],
+)
+
+jobs_health_score = Gauge(
+    "jobs_health_score",
+    "Score de saude operacional do coletor de vagas (0-100). "
+    "Composto de success_rate, frescor, volume e taxa de duplicatas.",
+    ["collector_name"],
+)
+
+jobs_duplicate_rate = Gauge(
+    "jobs_duplicate_rate",
+    "Taxa de duplicatas no dataset de vagas por fonte (0.0-1.0).",
+    ["source"],
+)
+
+jobs_success_rate = Gauge(
+    "jobs_success_rate",
+    "Taxa de execucoes bem-sucedidas do coletor de vagas (0.0-1.0).",
+    ["collector_name"],
+)
+
+jobs_failed_runs_total = Gauge(
+    "jobs_failed_runs_total",
+    "Total acumulado de execucoes com falha por coletor de vagas.",
+    ["collector_name"],
+)
+
+# ── Real Estate metrics ───────────────────────────────────────────────────────
+
+real_estate_records_total = Gauge(
+    "real_estate_records_total",
+    "Total de registros de imoveis por fonte na tabela raw_collections.",
+    ["source"],
+)
+
+real_estate_freshness_score = Gauge(
+    "real_estate_freshness_score",
+    "Score de frescor do dataset de imoveis por fonte (0-100).",
+    ["source"],
+)
+
+real_estate_health_score = Gauge(
+    "real_estate_health_score",
+    "Score de saude operacional do coletor de imoveis (0-100).",
+    ["collector_name"],
+)
+
+real_estate_duplicate_rate = Gauge(
+    "real_estate_duplicate_rate",
+    "Taxa de duplicatas no dataset de imoveis por fonte (0.0-1.0).",
+    ["source"],
+)
+
+real_estate_success_rate = Gauge(
+    "real_estate_success_rate",
+    "Taxa de execucoes bem-sucedidas do coletor de imoveis (0.0-1.0).",
+    ["collector_name"],
+)
+
+real_estate_failed_runs_total = Gauge(
+    "real_estate_failed_runs_total",
+    "Total acumulado de execucoes com falha por coletor de imoveis.",
+    ["collector_name"],
+)
+
+# ── Cross-domain source health ─────────────────────────────────────────────────
+
+source_health_score = Gauge(
+    "source_health_score",
+    "Score de saude da fonte de dados (0-100), calculado pelo compute_source_health_job.",
+    ["collector_name", "category"],
+)
+
+source_health_status = Gauge(
+    "source_health_status",
+    "Status operacional da fonte como valor numerico: "
+    "HEALTHY=5, WARNING=4, DEGRADED=3, CRITICAL=2, BLOCKED=1, UNKNOWN=0.",
+    ["collector_name", "category", "status"],
+)
+
+# ── Dataset integrity scores ───────────────────────────────────────────────────
+
+etl_dataset_integrity_score = Gauge(
+    "etl_dataset_integrity_score",
+    "Score de integridade por dimensao por dataset ETL/fonte (0-100). "
+    "dimension: freshness|completeness|consistency|duplication|coverage|overall. "
+    "Calculado pelo compute_dataset_integrity_job a cada 6h.",
+    ["dataset", "source", "dimension"],
+)
+
+etl_dataset_records_total = Gauge(
+    "etl_dataset_records_total",
+    "Total de registros no dataset ETL por fonte (jobs, real_estate).",
+    ["dataset", "source"],
+)
+
+# ── Dataset HHI (concentração de fonte) ──────────────────────────────────────
+
+dataset_hhi_score = Gauge(
+    "dataset_hhi_score",
+    "Herfindahl-Hirschman Index por dataset (jobs, real_estate). "
+    "0=perfeito=diversificado, 10000=monopólio. "
+    "Calculado pelo compute_dataset_integrity_job a cada 6h.",
+    ["dataset"],
+)
+
+dataset_source_share = Gauge(
+    "dataset_source_share",
+    "Share de cada fonte no dataset (0.0–1.0), últimas 24h de raw_collections.",
+    ["dataset", "source"],
+)
+
+# ── B2: Dataset window (janela real de histórico) ─────────────────────────────
+
+dataset_window_days = Gauge(
+    "dataset_window_days",
+    "Janela real de histórico do dataset em dias (max - min de collected_at). "
+    "Indica maturidade dos dados para analytics e backtests.",
+    ["dataset"],
+)
+
+dataset_first_record_timestamp = Gauge(
+    "dataset_first_record_timestamp_seconds",
+    "Unix timestamp do registro mais antigo em raw_collections por dataset.",
+    ["dataset"],
+)
+
+# ── Real Estate field presence & drift (FASE 6) ───────────────────────────────
+
+real_estate_field_presence_rate = Gauge(
+    "real_estate_field_presence_rate",
+    "Taxa de presenca de campo em structured_fields por agencia (0-1). "
+    "field: title|listing_type|property_type|price|city|neighborhood. "
+    "Calculado pelo compute_source_health_job.",
+    ["agency_id", "field"],
+)
+
+real_estate_schema_drift_score = Gauge(
+    "real_estate_schema_drift_score",
+    "Score de drift de schema por agencia (0-100). "
+    "100=sem drift, diminui 15 pontos por campo com queda >20pp vs baseline.",
+    ["agency_id"],
+)
+
+# ── Scheduler job durations ───────────────────────────────────────────────────
+
+observability_job_duration_seconds = Histogram(
+    "observability_job_duration_seconds",
+    "Duracao dos jobs de observabilidade (source health, integrity, snapshot).",
+    ["job_name"],
+    buckets=[0.5, 1.0, 5.0, 10.0, 30.0, 60.0, 120.0, 300.0],
+)
+
+# Poupi Baby value observability
+baby_coverage_score = Gauge(
+    "baby_coverage_score",
+    "Catalog coverage score for Poupi Baby products (0-100).",
+)
+
+baby_coverage_per_product = Gauge(
+    "baby_coverage_per_product",
+    "Number of active marketplaces with recent useful prices per canonical product.",
+    ["product"],
+)
+
+baby_product_marketplace_active = Gauge(
+    "baby_product_marketplace_active",
+    "Whether a product has a recent useful offer in a marketplace (1=yes, 0=no).",
+    ["product", "marketplace"],
+)
+
+baby_marketplace_coverage_rate = Gauge(
+    "baby_marketplace_coverage_rate",
+    "Share of monitored products with recent useful offers per marketplace (0-100).",
+    ["marketplace"],
+)
+
+marketplace_freshness_score = Gauge(
+    "marketplace_freshness_score",
+    "Freshness score per Poupi Baby marketplace (0-100).",
+    ["marketplace"],
+)
+
+baby_marketplace_last_price_age_seconds = Gauge(
+    "baby_marketplace_last_price_age_seconds",
+    "Age in seconds of the last normalized price per Poupi Baby marketplace.",
+    ["marketplace"],
+)
+
+price_history_growth_rate = Gauge(
+    "price_history_growth_rate",
+    "New Poupi Baby price history analytics rows in the last 24 hours.",
+)
+
+normalized_success_rate = Gauge(
+    "normalized_success_rate",
+    "Poupi Baby raw-to-normalized success rate in the last 24 hours (0-100).",
+    ["marketplace"],
+)
+
+useful_offer_rate = Gauge(
+    "useful_offer_rate",
+    "Share of active Poupi Baby targets with recent useful normalized offers (0-100).",
+    ["marketplace"],
+)
+
+baby_raw_collections_24h = Gauge(
+    "baby_raw_collections_24h",
+    "Poupi Baby raw ecommerce collections saved in the last 24 hours.",
+    ["marketplace"],
+)
+
+baby_normalized_products_24h = Gauge(
+    "baby_normalized_products_24h",
+    "Poupi Baby normalized ecommerce products saved in the last 24 hours.",
+    ["marketplace"],
+)
+
+baby_products_below_coverage_target = Gauge(
+    "baby_products_below_coverage_target",
+    "Number of Poupi Baby products below the minimum marketplace coverage target.",
 )

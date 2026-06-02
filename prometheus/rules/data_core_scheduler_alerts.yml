@@ -1,4 +1,64 @@
 groups:
+  - name: data-core-scheduler-hardening-p0
+    interval: 30s
+    rules:
+      - alert: DataCoreAnalyticsFreshnessCritical
+        expr: analytics_freshness_seconds{module=~"crypto|trading"} > 7200 or analytics_freshness_seconds{module=~"crypto|trading"} == -1
+        for: 5m
+        labels:
+          severity: critical
+          service: data-core
+          component: analytics
+          category: freshness
+        annotations:
+          summary: "Crypto analytics freshness is critical"
+          system: "Data Core / Analytics"
+          problem: "Analytics has not completed successfully for more than 2 hours, or has never completed."
+          impact: "Signals-feed consumers may receive stale or missing analytics even if collection and normalization are healthy."
+          urgency: "CRITICA"
+          action: "Check analytics_job execution, scheduler heartbeat, APScheduler restarts, DB locks, and analytics backlog before touching strategy."
+          evidence: "analytics_freshness_seconds{module=\"{{ $labels.module }}\"} = {{ $value }}"
+          dashboard: "Data Core / Analytics Freshness"
+          description: "Crypto/trading analytics freshness exceeded 2 hours. This is a Data Core scheduler/observability alert, not a strategy alert."
+
+      - alert: DataCoreSchedulerAliveButAnalyticsIdle
+        expr: (scheduler_heartbeat_age_seconds >= 0 and scheduler_heartbeat_age_seconds < 600) and on() (max(analytics_freshness_seconds{module=~"crypto|trading"}) > 5400)
+        for: 5m
+        labels:
+          severity: critical
+          service: data-core
+          component: scheduler
+          category: idle-scheduler
+        annotations:
+          summary: "Scheduler is alive but crypto analytics is idle"
+          system: "Data Core / Scheduler"
+          problem: "The scheduler heartbeat is fresh, but analytics has not completed within the 90 minute idle threshold."
+          impact: "APScheduler may be alive while the hourly analytics job is not firing or not finishing."
+          urgency: "CRITICA"
+          action: "Inspect APScheduler job list, missed jobs, misfire settings, process restarts, and analytics_job logs."
+          evidence: "scheduler_heartbeat_age_seconds={{ $value }}, max crypto/trading analytics freshness > 5400s"
+          dashboard: "Data Core / Scheduler Runtime"
+          description: "Heartbeat proves the scheduler process is active, but analytics is idle. This catches the MemoryJobStore/restart-loop failure mode."
+
+      - alert: DataCoreSchedulerRestartLoopP0
+        expr: increase(data_core_scheduler_restart_count[1h]) > 3
+        for: 0m
+        labels:
+          severity: critical
+          service: data-core
+          component: scheduler
+          category: restart-loop
+        annotations:
+          summary: "Scheduler restart loop detected"
+          system: "Data Core / Scheduler"
+          problem: "Scheduler restart count increased more than 3 times in 1 hour."
+          impact: "MemoryJobStore can lose the next analytics fire time on each restart; hourly analytics may never run."
+          urgency: "CRITICA"
+          action: "Preserve logs, inspect restart provenance/OOM/deploy drift, and verify analytics freshness/backlog after stabilization."
+          evidence: "increase(data_core_scheduler_restart_count[1h]) = {{ $value }}"
+          dashboard: "Data Core / Scheduler Forensics"
+          description: "Scheduler restarted repeatedly within 1 hour. Treat freshness/backlog alerts as likely downstream symptoms."
+
   - name: data-core-scheduler-watchdog
     interval: 30s
     rules:
@@ -11,6 +71,13 @@ groups:
           component: scheduler
         annotations:
           summary: "Data-core scheduler memory above 75%"
+          system: "Data Core / Scheduler"
+          problem: "Scheduler memory has stayed above 75% for 10 minutes."
+          impact: "Scheduler may slow down and create freshness/backlog pressure."
+          urgency: "MEDIA"
+          action: "Check memory trend, cycle duration, backlog, and host memory before changing limits."
+          evidence: "data_core_scheduler_memory_usage_ratio = {{ $value }}"
+          dashboard: "Data Core / Scheduler Memory"
           description: "Scheduler memory usage has been above 75% for 10 minutes. Check trend, cycle duration, backlog, and host memory before changing runtime limits."
           runbook_url: "docs/scheduler-incident-response.md#datacoreschedulermemoryhigh"
 
@@ -23,6 +90,13 @@ groups:
           component: scheduler
         annotations:
           summary: "Data-core scheduler memory above 90%"
+          system: "Data Core / Scheduler"
+          problem: "Scheduler is near its memory limit."
+          impact: "OOM or restart loop may interrupt scheduled jobs."
+          urgency: "CRITICA"
+          action: "Inspect logs, OOM counters, memory growth, and recent workload changes before restarting."
+          evidence: "data_core_scheduler_memory_usage_ratio = {{ $value }}"
+          dashboard: "Data Core / Scheduler Memory"
           description: "Scheduler is near its memory limit. Inspect logs, OOM counters, and recent cycle behavior before any manual restart."
           runbook_url: "docs/scheduler-incident-response.md#datacoreschedulermemorycritical"
 
@@ -35,6 +109,13 @@ groups:
           component: scheduler
         annotations:
           summary: "Data-core scheduler swap usage elevated"
+          system: "Data Core / Scheduler"
+          problem: "Scheduler swap usage is above 20% for 10 minutes."
+          impact: "Swap pressure can delay jobs and increase execution drift."
+          urgency: "MEDIA"
+          action: "Correlate scheduler swap, host swap, memory growth, and long-running jobs."
+          evidence: "data_core_scheduler_swap_usage_ratio = {{ $value }}"
+          dashboard: "Data Core / Scheduler Memory"
           description: "Scheduler swap usage is above 20% for 10 minutes. Correlate with host swap and memory growth."
           runbook_url: "docs/scheduler-incident-response.md#datacoreschedulerswapelevated"
 
@@ -47,6 +128,13 @@ groups:
           component: scheduler
         annotations:
           summary: "Recent scheduler OOM detected"
+          system: "Data Core / Scheduler"
+          problem: "The scheduler watchdog detected a new OOM event."
+          impact: "Jobs may have been interrupted and backlog/freshness alerts may be derivative."
+          urgency: "CRITICA"
+          action: "Preserve logs, check memory/swap trend, and reduce load before restarting manually."
+          evidence: "data_core_scheduler_state == 4"
+          dashboard: "Data Core / Scheduler Memory"
           description: "The scheduler watchdog detected a new cgroup OOM event. Confirm container health and preserve logs before mitigation."
           runbook_url: "docs/scheduler-incident-response.md#datacorescheduleroomrecent"
 
@@ -59,6 +147,13 @@ groups:
           component: scheduler
         annotations:
           summary: "Scheduler restart count increased"
+          system: "Data Core / Scheduler"
+          problem: "Scheduler restart count increased in the last 15 minutes."
+          impact: "Scheduler may be crash-looping or recovering from OOM/deployment drift."
+          urgency: "CRITICA"
+          action: "Inspect restart provenance, OOM counters, container logs, and recent deploy changes."
+          evidence: "increase(data_core_scheduler_restart_count[15m]) = {{ $value }}"
+          dashboard: "Data Core / Scheduler Forensics"
           description: "The scheduler restart count increased in the last 15 minutes. Investigate OOM, crash loops, and deployment drift."
           runbook_url: "docs/scheduler-incident-response.md#datacoreschedulerrestartcountincreasing"
 
@@ -71,6 +166,13 @@ groups:
           component: scheduler
         annotations:
           summary: "Scheduler memory growth suggests possible leak"
+          system: "Data Core / Scheduler"
+          problem: "Scheduler memory is growing while usage is already elevated."
+          impact: "Sustained growth can lead to OOM and scheduler restarts."
+          urgency: "MEDIA"
+          action: "Validate whether growth is a burst or persistent leak; inspect recent job mix."
+          evidence: "growth_rate={{ $value }}, memory_usage_ratio > 0.60"
+          dashboard: "Data Core / Scheduler Memory"
           description: "Memory is growing by more than 512 KiB/s while usage is above 60%. Validate whether this is a burst or persistent growth."
           runbook_url: "docs/scheduler-incident-response.md#datacoreschedulerpossiblememoryleak"
 
@@ -83,6 +185,13 @@ groups:
           component: scheduler
         annotations:
           summary: "Scheduler backlog score high"
+          system: "Data Core / Scheduler"
+          problem: "Scheduler backlog score is high."
+          impact: "Scheduler is not keeping up with pending pipeline work."
+          urgency: "MEDIA"
+          action: "Inspect pending normalization records, recent pipeline failures, and scheduler throughput."
+          evidence: "data_core_scheduler_backlog_score = {{ $value }}"
+          dashboard: "Data Core / Scheduler Reliability"
           description: "Backlog score is above 0.75 for 10 minutes. Inspect pending normalization records and recent pipeline failures."
           runbook_url: "docs/scheduler-incident-response.md#datacoreschedulerbackloghigh"
 
@@ -95,6 +204,13 @@ groups:
           component: scheduler
         annotations:
           summary: "Scheduler watchdog state is not healthy"
+          system: "Data Core / Scheduler"
+          problem: "Scheduler has stayed outside the healthy state for more than 10 minutes."
+          impact: "Jobs may be degraded even if the scheduler process is alive."
+          urgency: "MEDIA"
+          action: "Use /api/v1/runtime/scheduler-diagnosis for precise state and recommendation."
+          evidence: "data_core_scheduler_state = {{ $value }}"
+          dashboard: "Data Core / Scheduler Runtime"
           description: "Scheduler has stayed outside SCHEDULER_HEALTHY for more than 10 minutes. Use the diagnosis endpoint for precise state and recommendation."
           runbook_url: "docs/scheduler-incident-response.md#datacoreschedulerstatenothealthy"
 

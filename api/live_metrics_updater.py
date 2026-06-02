@@ -200,6 +200,9 @@ def refresh_live_metrics() -> dict[str, float]:
     # ── Phase S metrics ────────────────────────────────────────────────────────
     updated.update(refresh_burnin_metrics())
 
+    # ── Dataset integrity (DB-backed, cross-process fix) ──────────────────────
+    updated.update(refresh_dataset_integrity_metrics())
+
     return updated
 
 
@@ -336,6 +339,66 @@ def refresh_burnin_metrics() -> dict[str, float]:
     _set_bm(bm.observability_readiness_score,     "observability_readiness_score",     _DATA / "runtime_stability_summary.jsonl",  "observability_readiness_score")
     _set_bm(bm.burnin_readiness_score,            "burnin_readiness_score",            _DATA / "runtime_stability_summary.jsonl",  "burnin_readiness_score")
     _set_bm(bm.burnin_operational_maturity_score, "burnin_operational_maturity_score", _DATA / "runtime_stability_summary.jsonl",  "burnin_operational_maturity_score")
+
+    return updated
+
+
+def refresh_dataset_integrity_metrics() -> dict[str, float]:
+    """Read the latest dataset integrity scores from DB and populate API-process gauges.
+
+    The scheduler writes scores to ``crypto_dataset_quality_scores`` but its
+    in-memory Prometheus registry is never scraped by Prometheus (which only
+    hits the API at :8000/metrics).  This function bridges that gap by reading
+    the persisted scores and setting the gauges inside the API process.
+
+    Called every 60 s by the ``_metrics_refresh_loop`` daemon thread in main.py.
+    """
+    try:
+        from sqlalchemy import func as _f
+        from app.data_quality.crypto.models import CryptoDatasetQualityScore
+        from api.metrics import candle_coverage_pct, dataset_integrity_score
+        from database.session import SessionLocal
+    except Exception:
+        return {}
+
+    updated: dict[str, float] = {}
+    try:
+        with SessionLocal() as db:
+            # Latest evaluated_at per (symbol, timeframe) via a subquery.
+            latest_subq = (
+                db.query(
+                    CryptoDatasetQualityScore.symbol,
+                    CryptoDatasetQualityScore.timeframe,
+                    _f.max(CryptoDatasetQualityScore.evaluated_at).label("max_ts"),
+                )
+                .group_by(
+                    CryptoDatasetQualityScore.symbol,
+                    CryptoDatasetQualityScore.timeframe,
+                )
+                .subquery()
+            )
+            rows = (
+                db.query(CryptoDatasetQualityScore)
+                .join(
+                    latest_subq,
+                    (CryptoDatasetQualityScore.symbol == latest_subq.c.symbol)
+                    & (CryptoDatasetQualityScore.timeframe == latest_subq.c.timeframe)
+                    & (CryptoDatasetQualityScore.evaluated_at == latest_subq.c.max_ts),
+                )
+                .all()
+            )
+        for row in rows:
+            labels = {"symbol": row.symbol, "timeframe": row.timeframe}
+            if row.integrity_score is not None:
+                v = float(row.integrity_score)
+                dataset_integrity_score.labels(**labels).set(v)
+                updated[f"dataset_integrity_score[{row.symbol},{row.timeframe}]"] = v
+            if row.coverage_pct is not None:
+                v = float(row.coverage_pct)
+                candle_coverage_pct.labels(**labels).set(v)
+                updated[f"candle_coverage_pct[{row.symbol},{row.timeframe}]"] = v
+    except Exception:
+        pass
 
     return updated
 

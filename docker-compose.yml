@@ -12,6 +12,8 @@ services:
     ports:
       - "8000:8000"
     environment:
+      DATABASE_URL: postgresql+psycopg://data_core:data_core@postgres:5432/data_core
+      REDIS_URL: redis://redis:6379/1
       SCHEDULER_ENABLED: "false"
       POUPI_LEGACY_BACKEND_DIR: /app/poupi-baby/backend
       POUPI_CRYPTO_INTERNAL_URL: http://poupi-crypto-api:8002
@@ -52,6 +54,8 @@ services:
       - path: .env
         required: false
     environment:
+      DATABASE_URL: postgresql+psycopg://data_core:data_core@postgres:5432/data_core
+      REDIS_URL: redis://redis:6379/1
       SCHEDULER_ENABLED: "true"
       SCHEDULER_COLLECTORS_ENABLED: "true"
       SCHEDULER_PIPELINE_ENABLED: "false"
@@ -89,6 +93,8 @@ services:
       - path: .env
         required: false
     environment:
+      DATABASE_URL: postgresql+psycopg://data_core:data_core@postgres:5432/data_core
+      REDIS_URL: redis://redis:6379/1
       SCHEDULER_ENABLED: "false"
       WORKER_PIPELINE_INTERVAL_SECONDS: "300"
       POUPI_LEGACY_BACKEND_DIR: /app/poupi-baby/backend
