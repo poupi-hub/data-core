@@ -1,0 +1,5 @@
+services:
+  alertmanager:
+    volumes:
+      - ./runtime-data/alertmanager.telegram-first.rendered.yml:/etc/alertmanager/alertmanager.yml:ro
+      - ./alertmanager/poupi_telegram.tmpl:/etc/alertmanager/templates/poupi_telegram.tmpl:ro

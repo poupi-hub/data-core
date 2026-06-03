@@ -1,0 +1,30 @@
+[Unit]
+Description=data-core Pipeline Worker
+Documentation=https://github.com/seu-org/data-core
+After=network-online.target data-core.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=app
+Group=app
+WorkingDirectory=/opt/data-core
+EnvironmentFile=/opt/data-core/.env
+
+ExecStart=/opt/data-core/.venv/bin/python -m app.jobs.worker \
+    --interval ${WORKER_PIPELINE_INTERVAL_SECONDS:-60}
+
+Restart=always
+RestartSec=15
+StartLimitInterval=120
+StartLimitBurst=3
+
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=data-core-worker
+
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

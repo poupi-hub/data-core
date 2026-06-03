@@ -1,0 +1,82 @@
+{
+  "title": "Coverage Overview",
+  "uid": "poupi-baby-coverage-overview",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "5m",
+  "tags": ["poupi-baby", "coverage", "business"],
+  "timezone": "browser",
+  "panels": [
+    {
+      "id": 1,
+      "type": "stat",
+      "title": "Catalog Coverage",
+      "gridPos": {"x": 0, "y": 0, "w": 6, "h": 4},
+      "targets": [{"expr": "baby_coverage_score", "refId": "A"}],
+      "fieldConfig": {"defaults": {"unit": "percent", "min": 0, "max": 100}}
+    },
+    {
+      "id": 2,
+      "type": "stat",
+      "title": "Products Below Target",
+      "gridPos": {"x": 6, "y": 0, "w": 6, "h": 4},
+      "targets": [{"expr": "baby_products_below_coverage_target", "refId": "A"}]
+    },
+    {
+      "id": 3,
+      "type": "stat",
+      "title": "Price History Growth 24h",
+      "gridPos": {"x": 12, "y": 0, "w": 6, "h": 4},
+      "targets": [{"expr": "price_history_growth_rate", "refId": "A"}]
+    },
+    {
+      "id": 4,
+      "type": "bargauge",
+      "title": "Coverage By Product",
+      "gridPos": {"x": 0, "y": 4, "w": 12, "h": 8},
+      "targets": [{"expr": "baby_coverage_per_product", "refId": "A"}]
+    },
+    {
+      "id": 5,
+      "type": "bargauge",
+      "title": "Coverage By Marketplace",
+      "gridPos": {"x": 12, "y": 4, "w": 12, "h": 8},
+      "targets": [{"expr": "baby_marketplace_coverage_rate", "refId": "A"}],
+      "fieldConfig": {"defaults": {"unit": "percent", "min": 0, "max": 100}}
+    },
+    {
+      "id": 6,
+      "type": "timeseries",
+      "title": "Marketplace Freshness",
+      "gridPos": {"x": 0, "y": 12, "w": 12, "h": 8},
+      "targets": [{"expr": "marketplace_freshness_score", "refId": "A"}],
+      "fieldConfig": {"defaults": {"unit": "percent", "min": 0, "max": 100}}
+    },
+    {
+      "id": 7,
+      "type": "timeseries",
+      "title": "Raw vs Normalized 24h",
+      "gridPos": {"x": 12, "y": 12, "w": 12, "h": 8},
+      "targets": [
+        {"expr": "baby_raw_collections_24h", "refId": "A", "legendFormat": "raw {{marketplace}}"},
+        {"expr": "baby_normalized_products_24h", "refId": "B", "legendFormat": "normalized {{marketplace}}"}
+      ]
+    },
+    {
+      "id": 8,
+      "type": "bargauge",
+      "title": "Useful Offer Rate",
+      "gridPos": {"x": 0, "y": 20, "w": 12, "h": 8},
+      "targets": [{"expr": "useful_offer_rate", "refId": "A"}],
+      "fieldConfig": {"defaults": {"unit": "percent", "min": 0, "max": 100}}
+    },
+    {
+      "id": 9,
+      "type": "bargauge",
+      "title": "Normalized Success Rate",
+      "gridPos": {"x": 12, "y": 20, "w": 12, "h": 8},
+      "targets": [{"expr": "normalized_success_rate", "refId": "A"}],
+      "fieldConfig": {"defaults": {"unit": "percent", "min": 0, "max": 100}}
+    }
+  ]
+}

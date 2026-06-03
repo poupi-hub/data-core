@@ -1,0 +1,41 @@
+[Unit]
+Description=data-core API (FastAPI/uvicorn)
+Documentation=https://github.com/seu-org/data-core
+After=network-online.target postgresql.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=app
+Group=app
+WorkingDirectory=/opt/data-core
+EnvironmentFile=/opt/data-core/.env
+
+# Migrations antes de subir
+ExecStartPre=/opt/data-core/.venv/bin/alembic upgrade head
+
+ExecStart=/opt/data-core/.venv/bin/uvicorn app.main:create_app \
+    --factory \
+    --host 0.0.0.0 \
+    --port 8000 \
+    --workers 2 \
+    --no-access-log \
+    --proxy-headers \
+    --forwarded-allow-ips="*"
+
+Restart=always
+RestartSec=5
+StartLimitInterval=60
+StartLimitBurst=3
+
+# Logs para journald
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=data-core
+
+# Segurança básica
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

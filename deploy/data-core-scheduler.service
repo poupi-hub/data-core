@@ -1,0 +1,31 @@
+[Unit]
+Description=data-core Scheduler (APScheduler)
+Documentation=https://github.com/seu-org/data-core
+After=network-online.target data-core.service
+Wants=network-online.target
+# Aguarda API subir para Redis lock funcionar
+After=data-core.service
+
+[Service]
+Type=simple
+User=app
+Group=app
+WorkingDirectory=/opt/data-core
+EnvironmentFile=/opt/data-core/.env
+
+ExecStart=/opt/data-core/.venv/bin/python -m app.jobs.scheduler_runner
+
+Restart=always
+RestartSec=10
+StartLimitInterval=120
+StartLimitBurst=3
+
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=data-core-scheduler
+
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

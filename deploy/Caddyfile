@@ -1,0 +1,56 @@
+# Caddyfile — VPS Poupi
+# Colocar em /etc/caddy/Caddyfile
+# Instalar: apt install caddy
+# Recarregar: systemctl reload caddy
+#
+# Substitua <SEU_DOMINIO> pelo domínio real antes de usar.
+# DNS: apontar data-core.<SEU_DOMINIO> e crypto.<SEU_DOMINIO> para o IP do VPS.
+
+data-core.<SEU_DOMINIO> {
+    # HTTPS automático via Let's Encrypt
+    reverse_proxy localhost:8000
+
+    # Headers de segurança
+    header {
+        Strict-Transport-Security "max-age=31536000; includeSubDomains"
+        X-Content-Type-Options nosniff
+        X-Frame-Options DENY
+        -Server
+    }
+
+    # Rate limiting básico (requer caddy-ratelimit plugin, opcional)
+    # rate_limit {
+    #     zone dynamic_zone {
+    #         key {remote_host}
+    #         events 100
+    #         window 1m
+    #     }
+    # }
+
+    log {
+        output file /var/log/caddy/data-core.log {
+            roll_size 10mb
+            roll_keep 5
+        }
+        format json
+    }
+}
+
+crypto.<SEU_DOMINIO> {
+    reverse_proxy localhost:8002
+
+    header {
+        Strict-Transport-Security "max-age=31536000; includeSubDomains"
+        X-Content-Type-Options nosniff
+        X-Frame-Options DENY
+        -Server
+    }
+
+    log {
+        output file /var/log/caddy/crypto.log {
+            roll_size 10mb
+            roll_keep 5
+        }
+        format json
+    }
+}
