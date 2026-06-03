@@ -9,6 +9,13 @@ groups:
           service: data-core
         annotations:
           summary: "Data Core price feed is not serving items"
+          system: "Data Core / Price Feed"
+          problem: "Price feed served zero items in the last 30 minutes."
+          impact: "Downstream consumers may stop receiving fresh market/product data."
+          urgency: "MEDIA"
+          action: "Check collection, normalization, price-feed requests, and downstream sync jobs."
+          evidence: "increase(price_feed_items_served_total[30m]) == 0"
+          dashboard: "Data Core / Pipeline Freshness"
           description: "No price-feed items were served in the last 30 minutes. Check collection, normalization, and poupi-baby sync health."
 
       - alert: DataCoreJobDeadLetterCreated
@@ -19,6 +26,13 @@ groups:
           service: data-core
         annotations:
           summary: "Data Core job exhausted retries"
+          system: "Data Core / Scheduler"
+          problem: "At least one scheduler job exhausted retries and created a dead letter."
+          impact: "A pipeline step may be stuck until the dead letter is inspected and resolved."
+          urgency: "ALTA"
+          action: "Open /api/v1/operations/collector-errors, inspect the failed job, and resolve or retry manually."
+          evidence: "job_dead_letters_unresolved > 0"
+          dashboard: "Data Core / Scheduler Reliability"
           description: "At least one scheduler job has an unresolved JobDeadLetter in collector_errors."
 
       - alert: DataCoreCircuitBreakerOpen
@@ -29,6 +43,13 @@ groups:
           service: data-core
         annotations:
           summary: "Data Core circuit breaker is open for {{ $value }} source(s)"
+          system: "Data Core / Circuit Breaker"
+          problem: "One or more sources were auto-deactivated after repeated failures."
+          impact: "Freshness and downstream analytics can degrade for affected sources."
+          urgency: "ALTA"
+          action: "Inspect source errors, confirm whether the upstream source changed, then reopen only after validation."
+          evidence: "circuit_breaker_open_sources = {{ $value }}"
+          dashboard: "Data Core / Operations Overview"
           description: "One or more collection sources have been auto-deactivated after consecutive failures. Check /api/v1/operations/collector-errors for details."
 
       - alert: DataCoreCircuitBreakerSpike
@@ -39,6 +60,13 @@ groups:
           service: data-core
         annotations:
           summary: "Data Core circuit breakers opening frequently"
+          system: "Data Core / Circuit Breaker"
+          problem: "Circuit breakers opened more than twice in one hour."
+          impact: "A systemic source or network issue may be creating repeated collection failures."
+          urgency: "MEDIA"
+          action: "Check module/source labels, recent collector logs, and upstream availability before reopening sources."
+          evidence: "increase(circuit_breaker_opens_total[1h]) = {{ $value }}"
+          dashboard: "Data Core / Operations Overview"
           description: "More than 2 circuit breaker trips in the last hour for module={{ $labels.module }} source={{ $labels.source_name }}."
 
       - alert: DataCorePriceFeedRequestsDrop
@@ -49,6 +77,13 @@ groups:
           service: data-core
         annotations:
           summary: "Data Core price-feed endpoint not receiving requests"
+          system: "Data Core / API"
+          problem: "The price-feed endpoint has received no requests for 30 minutes."
+          impact: "The consumer sync may be stopped even if Data Core is healthy."
+          urgency: "MEDIA"
+          action: "Check downstream sync process, network route, and API authentication."
+          evidence: "increase(price_feed_requests_total[15m]) == 0 for 30m"
+          dashboard: "Data Core / API"
           description: "No requests to /price-feed in the last 30 minutes. The poupi-baby sync may have stopped or lost connectivity."
 
       - alert: DataCoreDeadLetterSpike
@@ -59,6 +94,13 @@ groups:
           service: data-core
         annotations:
           summary: "Multiple dead-letter jobs in last 30 minutes ({{ $value }})"
+          system: "Data Core / Scheduler"
+          problem: "Multiple scheduler jobs created dead letters in the last 30 minutes."
+          impact: "The pipeline may be failing systemically rather than on a single item."
+          urgency: "MEDIA"
+          action: "Group failures by job/source, inspect logs, and pause noisy retries if needed."
+          evidence: "increase(job_dead_letters_total[30m]) = {{ $value }}"
+          dashboard: "Data Core / Scheduler Reliability"
           description: "More than 3 scheduler jobs wrote dead letters in the last 30 minutes for job={{ $labels.job_name }}. Possible systemic failure."
 
       - alert: DataCoreApiDown
@@ -69,4 +111,11 @@ groups:
           service: data-core
         annotations:
           summary: "Data Core API is unreachable"
+          system: "Data Core / API"
+          problem: "Prometheus cannot scrape the Data Core API metrics endpoint."
+          impact: "Data Core API, operational checks, and downstream consumers may be unavailable."
+          urgency: "CRITICA"
+          action: "Check data-core-api container health, logs, database connectivity, and recent deploy changes."
+          evidence: "up{job=\"data-core-api\"} == 0 for 2m"
+          dashboard: "Data Core / Operations Overview"
           description: "Prometheus cannot scrape the data-core API metrics endpoint. The service may be down."

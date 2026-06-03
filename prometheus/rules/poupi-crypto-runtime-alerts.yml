@@ -1,0 +1,21 @@
+groups:
+  - name: poupi-crypto-runtime-alerts
+    interval: 60s
+    rules:
+      - alert: TelegramDirectFailure
+        expr: increase(poupi_crypto_telegram_direct_send_failure_total[15m]) > 0
+        for: 0m
+        labels:
+          severity: warning
+          service: poupi-crypto
+          component: telegram
+        annotations:
+          summary: "Poupi Crypto direct Telegram publisher is failing"
+          system: "Poupi Crypto / Telegram"
+          problem: "A direct Telegram publisher failed to send at least one message."
+          impact: "Operational or research messages may be missing even if Alertmanager is healthy."
+          urgency: "MEDIA"
+          action: "Check bot token, chat_id, Telegram API response, network, and publisher label."
+          evidence: "increase(poupi_crypto_telegram_direct_send_failure_total[15m]) = {{ $value }}"
+          dashboard: "Crypto / Runtime Risk"
+          description: "Direct Telegram sends from poupi-crypto failed in the last 15 minutes."

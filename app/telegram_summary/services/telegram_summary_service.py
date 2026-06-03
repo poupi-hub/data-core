@@ -16,6 +16,7 @@ import logging
 
 from sqlalchemy.orm import Session
 
+from app.telegram_summary import channel_resolver as _cr
 from app.telegram_summary import metrics as _m
 from app.telegram_summary.formatters.alert_formatter import format_alert
 from app.telegram_summary.formatters.longitudinal_formatter import format_longitudinal_summary
@@ -35,6 +36,11 @@ class TelegramSummaryService:
 
     def __init__(self) -> None:
         self._notifier = TelegramNotifier()
+
+    def _notifier_for(self, event_type: str) -> TelegramNotifier:
+        """Return a TelegramNotifier targeting the resolved channel for event_type."""
+        chat_id = _cr.resolve_chat_id(event_type)
+        return TelegramNotifier(chat_id=chat_id)
 
     # ── Public API ─────────────────────────────────────────────────────────────
 
@@ -62,6 +68,7 @@ class TelegramSummaryService:
             format_fn=format_longitudinal_summary,
         )
 
+
     def check_and_send_alerts(self, db: Session) -> int:
         """Evaluate alert conditions and send any that are active and off-cooldown.
 
@@ -79,8 +86,10 @@ class TelegramSummaryService:
 
         for alert in pending:
             try:
-                html = format_alert(alert)
-                ok = self._notifier.send(html)
+                label = _cr.resolve_label(alert.alert_type)
+                html = label + format_alert(alert)
+                notifier = self._notifier_for(alert.alert_type)
+                ok = notifier.send(html)
                 if ok:
                     alert_svc.mark_sent(alert.alert_type)
                     _m.telegram_alert_sent_total.labels(
@@ -107,8 +116,10 @@ class TelegramSummaryService:
     def _send(self, *, summary_type: str, gather_fn, format_fn) -> bool:
         try:
             payload = gather_fn()
-            html = format_fn(payload)
-            ok = self._notifier.send(html)
+            label = _cr.resolve_label(summary_type)
+            html = label + format_fn(payload)
+            notifier = self._notifier_for(summary_type)
+            ok = notifier.send(html)
             if ok:
                 _m.telegram_summary_sent_total.labels(summary_type=summary_type).inc()
                 logger.info(

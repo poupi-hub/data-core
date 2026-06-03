@@ -1,0 +1,89 @@
+groups:
+  - name: poupi-baby-coverage-intelligence
+    interval: 60s
+    rules:
+      - alert: MarketplaceStale
+        expr: baby_marketplace_last_price_age_seconds > 21600
+        for: 15m
+        labels:
+          severity: warning
+          service: poupi-baby
+          component: marketplace
+          root_cause: marketplace_down
+        annotations:
+          summary: "Poupi Baby marketplace {{ $labels.marketplace }} stale"
+          system: "Poupi Baby"
+          problem: "Marketplace stale"
+          impact: "{{ $labels.marketplace }} sem preco novo ha mais de 6h; comparacoes podem ficar incompletas."
+          urgency: "MEDIA"
+          action: "Validar scraper, fila, anti-bot e normalizacao do marketplace."
+          evidence: "age_seconds={{ $value | printf \"%.0f\" }}"
+          dashboard: "Coverage Overview"
+
+      - alert: BabyCoverageDrop
+        expr: baby_coverage_per_product < baby_coverage_per_product offset 24h
+        for: 30m
+        labels:
+          severity: warning
+          service: poupi-baby
+          component: coverage
+        annotations:
+          summary: "Poupi Baby product coverage dropped"
+          system: "Poupi Baby"
+          problem: "Coverage por produto caiu"
+          impact: "O produto {{ $labels.product }} perdeu marketplaces uteis recentes."
+          urgency: "MEDIA"
+          action: "Verificar marketplaces recentes do produto e checar se ha causa raiz MarketplaceStale."
+          evidence: "coverage_now={{ $value }}; coverage_24h_ago={{ $labels.product }}"
+          dashboard: "Coverage Overview"
+
+      - alert: ProductLostMarketplace
+        expr: baby_product_marketplace_active == 0 and baby_product_marketplace_active offset 24h == 1
+        for: 30m
+        labels:
+          severity: warning
+          service: poupi-baby
+          component: coverage
+        annotations:
+          summary: "Poupi Baby product lost marketplace"
+          system: "Poupi Baby"
+          problem: "Produto perdeu marketplace"
+          impact: "{{ $labels.product }} nao tem mais oferta util recente em {{ $labels.marketplace }}."
+          urgency: "MEDIA"
+          action: "Validar URL, disponibilidade real, scraper e normalizador desse marketplace."
+          evidence: "active_now=0; active_24h_ago=1"
+          dashboard: "Coverage Overview"
+
+      - alert: PriceHistoryNotGrowing
+        expr: price_history_growth_rate == 0
+        for: 24h
+        labels:
+          severity: warning
+          service: poupi-baby
+          component: price_history
+        annotations:
+          summary: "Poupi Baby price history is not growing"
+          system: "Poupi Baby"
+          problem: "Historico de preco sem crescimento"
+          impact: "Deal score e comparacao historica podem ficar sem base nova."
+          urgency: "MEDIA"
+          action: "Verificar analytics job, normalizacao ecommerce e inserts em product_price_analytics."
+          evidence: "price_history_growth_rate={{ $value }}"
+          dashboard: "Coverage Overview"
+
+      - alert: RawOkNormalizedZero
+        expr: baby_raw_collections_24h > 0 and baby_normalized_products_24h == 0
+        for: 2h
+        labels:
+          severity: warning
+          service: poupi-baby
+          component: normalization
+        annotations:
+          summary: "Poupi Baby raw saved but normalization produced zero products"
+          system: "Poupi Baby"
+          problem: "Raw salvo, normalizacao zerada"
+          impact: "{{ $labels.marketplace }} coleta dados, mas nao gera ofertas uteis para usuarios."
+          urgency: "ALTA"
+          action: "Validar normalizador, schema raw, payload quality e erros de normalizacao."
+          evidence: "raw_24h={{ $value }}; normalized_24h=0"
+          dashboard: "Coverage Overview"

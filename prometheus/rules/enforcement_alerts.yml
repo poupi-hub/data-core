@@ -14,6 +14,13 @@ groups:
           layer: enforcement
         annotations:
           summary: "Enforcement policy fetch failures detected"
+          system: "Crypto / Enforcement"
+          problem: "Poupi Crypto is failing to fetch enforcement policy."
+          impact: "Runtime may use cached or fallback policy instead of current Data Core policy."
+          urgency: "MEDIA"
+          action: "Check Data Core policy endpoint, network route, API key, and policy service logs."
+          evidence: "rate(enforcement_policy_fetch_failures_total[5m]) = {{ $value }}"
+          dashboard: "Crypto / Enforcement"
           description: >
             {{ $value | humanize }} policy fetch failures/s in the last 5 minutes.
             Downstream services may be running on stale or fallback policies.
@@ -26,6 +33,13 @@ groups:
           layer: enforcement
         annotations:
           summary: "Enforcement layer using conservative fallback policy"
+          system: "Crypto / Enforcement"
+          problem: "Enforcement is using conservative fallback policy."
+          impact: "Position sizing or allowed actions may be more restrictive than intended."
+          urgency: "ALTA"
+          action: "Verify policy fetch path and clear fallback only after policy endpoint is healthy."
+          evidence: "enforcement_policy_using_fallback == 1"
+          dashboard: "Crypto / Enforcement"
           description: >
             data-core /policy/operational is unreachable for 3+ minutes.
             Downstream enforcement is running on the conservative fallback (safe_mode).
@@ -38,6 +52,13 @@ groups:
           layer: enforcement
         annotations:
           summary: "Enforcement policy cache is stale"
+          system: "Crypto / Enforcement"
+          problem: "Enforcement policy cache age is above 180 seconds."
+          impact: "Runtime may be acting on stale risk policy."
+          urgency: "MEDIA"
+          action: "Check policy refresh logs, Data Core reachability, and enforcement client timeout."
+          evidence: "enforcement_policy_cache_age_seconds = {{ $value }}"
+          dashboard: "Crypto / Enforcement"
           description: >
             Cached policy is {{ $value }}s old (>3min).
             The client may be failing to re-fetch from data-core.
@@ -52,6 +73,13 @@ groups:
           layer: enforcement
         annotations:
           summary: "Enforcement kill-switch blocked a critical action"
+          system: "Crypto / Enforcement"
+          problem: "Enforcement kill switch blocked a critical action."
+          impact: "Trading actions are being intentionally blocked by safety policy."
+          urgency: "CRITICA"
+          action: "Confirm kill-switch reason in policy report and do not override without root-cause review."
+          evidence: "increase(enforcement_kill_switch_blocks_total[5m]) = {{ $value }}"
+          dashboard: "Crypto / Enforcement"
           description: >
             kill_switch has blocked {{ $value }} action(s) in the last 5 minutes.
             Operational confidence is critically low — investigate immediately.
@@ -67,6 +95,13 @@ groups:
           layer: enforcement
         annotations:
           summary: "Enforcement is blocking position opens"
+          system: "Crypto / Enforcement"
+          problem: "Enforcement is blocking position_open actions."
+          impact: "Signals may still be generated, but no new paper positions will open."
+          urgency: "MEDIA"
+          action: "Check enforcement mode, confidence score, blocked action reason, and policy report."
+          evidence: "increase(enforcement_blocked_actions_total{action=\"position_open\"}[10m]) = {{ $value }}"
+          dashboard: "Crypto / Enforcement"
           description: >
             {{ $value }} position_open actions blocked in the last 10 minutes.
             Current enforcement mode is blocking new paper positions.
@@ -80,6 +115,13 @@ groups:
           layer: enforcement
         annotations:
           summary: "Enforcement is blocking signal generation"
+          system: "Crypto / Enforcement"
+          problem: "Enforcement is blocking signal_generate actions."
+          impact: "No new decisions/signals will be generated while this condition persists."
+          urgency: "CRITICA"
+          action: "Check policy mode, kill switch, fail_closed state, and Data Core operational confidence."
+          evidence: "increase(enforcement_blocked_actions_total{action=\"signal_generate\"}[10m]) = {{ $value }}"
+          dashboard: "Crypto / Enforcement"
           description: >
             {{ $value }} signal_generate actions blocked in the last 10 minutes.
             System is in emergency_kill_switch mode.
@@ -94,6 +136,13 @@ groups:
           layer: enforcement
         annotations:
           summary: "Enforcement mode escalated to fail_closed or emergency"
+          system: "Crypto / Enforcement"
+          problem: "Enforcement mode is fail_closed or emergency."
+          impact: "Critical trading actions should be blocked until operational confidence recovers."
+          urgency: "CRITICA"
+          action: "Review /adaptive-policy/report and /health/operational before clearing the mode."
+          evidence: "enforcement_current_mode = {{ $value }}"
+          dashboard: "Crypto / Enforcement"
           description: >
             Enforcement mode is {{ $value }} (4=fail_closed, 5=emergency_kill_switch).
             New paper positions are blocked. Investigate operational confidence.
@@ -106,6 +155,13 @@ groups:
           layer: enforcement
         annotations:
           summary: "Enforcement mode escalated to safe_mode"
+          system: "Crypto / Enforcement"
+          problem: "Enforcement mode is safe_mode."
+          impact: "Runtime should operate with reduced risk hints or stricter constraints."
+          urgency: "MEDIA"
+          action: "Review policy report, confidence score, and degradation reasons."
+          evidence: "enforcement_current_mode = {{ $value }}"
+          dashboard: "Crypto / Enforcement"
           description: >
             Enforcement mode has been safe_mode for 10+ minutes.
             Position sizing is reduced and confidence threshold is raised.
@@ -120,6 +176,13 @@ groups:
           layer: enforcement
         annotations:
           summary: "Enforcement confidence score below 50 for 10 minutes"
+          system: "Crypto / Enforcement"
+          problem: "Enforcement confidence score is below 50."
+          impact: "Policy decisions may become conservative and block actions."
+          urgency: "MEDIA"
+          action: "Check operational confidence, replayability, quant reliability, and dataset truth."
+          evidence: "enforcement_current_confidence_score = {{ $value }}"
+          dashboard: "Crypto / Enforcement"
           description: >
             Operational confidence in enforcement client is {{ $value }}/100.
             This may indicate sustained platform degradation.

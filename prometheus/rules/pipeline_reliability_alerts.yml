@@ -10,9 +10,17 @@ groups:
         labels:
           severity: critical
           service: data-core
+          component: pipeline
           category: pipeline-liveness
         annotations:
           summary: "Pipeline {{ $labels.pipeline_id }} is DEAD"
+          system: "Data Core / Pipeline"
+          problem: "Pipeline {{ $labels.pipeline_id }} is marked DEAD."
+          impact: "The affected pipeline is not producing reliable data."
+          urgency: "CRITICA"
+          action: "Check scheduler heartbeat, pipeline failure records, DB connectivity, and recent job logs."
+          evidence: "pipeline_liveness_status == 1 for {{ $labels.pipeline_id }}"
+          dashboard: "Data Core / Pipeline Liveness"
           description: >
             Pipeline {{ $labels.pipeline_id }} has status=DEAD (no successful run
             in > 10× its expected interval). Immediate investigation required.
@@ -24,9 +32,17 @@ groups:
         labels:
           severity: warning
           service: data-core
+          component: pipeline
           category: pipeline-liveness
         annotations:
           summary: "Pipeline {{ $labels.pipeline_id }} is BLOCKED"
+          system: "Data Core / Pipeline"
+          problem: "Pipeline {{ $labels.pipeline_id }} is blocked."
+          impact: "Data may be waiting on an upstream dependency or blocked queue."
+          urgency: "MEDIA"
+          action: "Check upstream source health, pending records, and dead letters before restarting jobs."
+          evidence: "pipeline_liveness_status == 2 for {{ $labels.pipeline_id }}"
+          dashboard: "Data Core / Pipeline Liveness"
           description: >
             Pipeline {{ $labels.pipeline_id }} has been erroring without a successful
             completion. Check pipeline_failures table and scheduler logs.
@@ -38,9 +54,17 @@ groups:
         labels:
           severity: warning
           service: data-core
+          component: pipeline
           category: pipeline-liveness
         annotations:
           summary: "Pipeline {{ $labels.pipeline_id }} is STALLED"
+          system: "Data Core / Pipeline"
+          problem: "Pipeline {{ $labels.pipeline_id }} is stalled."
+          impact: "Freshness can degrade if the stall persists."
+          urgency: "MEDIA"
+          action: "Check recent successful runs, lag, queue size, and scheduler drift."
+          evidence: "pipeline_liveness_status == 3 for {{ $labels.pipeline_id }}"
+          dashboard: "Data Core / Pipeline Liveness"
           description: >
             Pipeline {{ $labels.pipeline_id }} has not produced output within its
             expected window. Lag = {{ $value }}s.
@@ -52,9 +76,17 @@ groups:
         labels:
           severity: critical
           service: data-core
+          component: freshness
           category: normalization
         annotations:
           summary: "Ecommerce normalization lag is critical"
+          system: "Data Core / Freshness"
+          problem: "Ecommerce normalization lag is above 2 hours."
+          impact: "Raw collections are not becoming normalized records fast enough."
+          urgency: "ALTA"
+          action: "Check normalize_ecommerce pipeline, pending raw records, dead letters, and scheduler health."
+          evidence: "pipeline_liveness_lag_seconds{pipeline_id=\"normalize_ecommerce\"} = {{ $value }}"
+          dashboard: "Data Core / Pipeline Freshness"
           description: >
             normalize_ecommerce pipeline lag is {{ $value | humanizeDuration }}.
             raw_collections are accumulating without normalization.
@@ -67,9 +99,17 @@ groups:
         labels:
           severity: warning
           service: data-core
+          component: freshness
           category: analytics
         annotations:
           summary: "Ecommerce analytics pipeline lag is critical"
+          system: "Data Core / Analytics"
+          problem: "Ecommerce analytics pipeline lag is above 4 hours."
+          impact: "Analytics consumers may be using stale normalized data."
+          urgency: "MEDIA"
+          action: "Check analytics_ecommerce job, DB write path, and queue lag."
+          evidence: "pipeline_liveness_lag_seconds{pipeline_id=\"analytics_ecommerce\"} = {{ $value }}"
+          dashboard: "Data Core / Pipeline Freshness"
           description: >
             analytics_ecommerce pipeline lag is {{ $value | humanizeDuration }}.
             price analytics may be stale.
@@ -85,9 +125,17 @@ groups:
         labels:
           severity: critical
           service: data-core
+          component: scheduler
           category: scheduler
         annotations:
           summary: "Scheduler proof-of-execution heartbeat is stale"
+          system: "Data Core / Scheduler"
+          problem: "Scheduler heartbeat is stale or missing."
+          impact: "Jobs may be frozen even if containers still appear alive."
+          urgency: "CRITICA"
+          action: "Check scheduler container, heartbeat file, logs, Postgres, Redis, and recent restarts."
+          evidence: "scheduler_heartbeat_age_seconds = {{ $value }}"
+          dashboard: "Data Core / Scheduler Runtime"
           description: >
             The scheduler heartbeat file has not been updated in
             {{ $value | humanizeDuration }}.
@@ -101,9 +149,17 @@ groups:
         labels:
           severity: warning
           service: data-core
+          component: scheduler
           category: scheduler
         annotations:
           summary: "Scheduler has {{ $value }} consecutive failures"
+          system: "Data Core / Scheduler"
+          problem: "Scheduler has consecutive job failures."
+          impact: "Freshness and backlog recovery may degrade if failures continue."
+          urgency: "MEDIA"
+          action: "Inspect failed job names, source errors, DB connectivity, and retry/dead-letter records."
+          evidence: "scheduler_consecutive_failures = {{ $value }}"
+          dashboard: "Data Core / Scheduler Reliability"
           description: >
             The scheduler has recorded {{ $value }} consecutive failed jobs.
             Check scheduler logs and pipeline_failures table.
@@ -115,9 +171,17 @@ groups:
         labels:
           severity: warning
           service: data-core
+          component: scheduler
           category: scheduler
         annotations:
           summary: "Scheduler execution drift is {{ $value | humanizeDuration }}"
+          system: "Data Core / Scheduler"
+          problem: "Scheduler jobs are firing late."
+          impact: "Freshness can degrade even when jobs are technically still running."
+          urgency: "MEDIA"
+          action: "Check CPU, memory, long-running jobs, executor saturation, and backlog pressure."
+          evidence: "scheduler_execution_drift_seconds = {{ $value }}"
+          dashboard: "Data Core / Scheduler Reliability"
           description: >
             The scheduler is firing jobs {{ $value }}s late versus their
             expected interval. Possible causes: resource contention, OOM,
@@ -134,9 +198,17 @@ groups:
         labels:
           severity: critical
           service: data-core
+          component: queue
           category: backlog
         annotations:
           summary: "Ecommerce normalization backlog has {{ $value }} pending records"
+          system: "Data Core / Queue"
+          problem: "Ecommerce normalization backlog is exploding."
+          impact: "Fresh data is accumulating faster than it can be normalized."
+          urgency: "CRITICA"
+          action: "Check scheduler health first, then normalization errors, DB locks, and raw pending age."
+          evidence: "queue_backlog_total{module=\"ecommerce\"} = {{ $value }}"
+          dashboard: "Data Core / Queue Lag"
           description: >
             {{ $value }} raw_collection records are pending normalization for
             ecommerce. normalize_job may be stalled or SCHEDULER_PIPELINE_ENABLED=false.
@@ -148,9 +220,17 @@ groups:
         labels:
           severity: warning
           service: data-core
+          component: queue
           category: backlog
         annotations:
           summary: "Ecommerce normalization backlog is {{ $value }} (elevated)"
+          system: "Data Core / Queue"
+          problem: "Ecommerce normalization backlog is elevated."
+          impact: "Freshness may degrade if backlog keeps growing."
+          urgency: "MEDIA"
+          action: "Check recent normalization throughput and failed jobs."
+          evidence: "queue_backlog_total{module=\"ecommerce\"} = {{ $value }}"
+          dashboard: "Data Core / Queue Lag"
           description: >
             {{ $value }} raw records are pending normalization for ecommerce.
             Normalization is running slowly or intermittently.
@@ -162,9 +242,17 @@ groups:
         labels:
           severity: critical
           service: data-core
+          component: queue
           category: backlog
         annotations:
           summary: "Oldest pending ecommerce raw is {{ $value | humanizeDuration }} old"
+          system: "Data Core / Queue"
+          problem: "The oldest pending ecommerce raw record is older than 4 hours."
+          impact: "Freshness is severely degraded for downstream consumers."
+          urgency: "CRITICA"
+          action: "Check scheduler, normalization backlog, DB write path, and failed jobs."
+          evidence: "queue_lag_seconds{module=\"ecommerce\"} = {{ $value }}"
+          dashboard: "Data Core / Queue Lag"
           description: >
             The oldest normalization_pending raw record for ecommerce is
             {{ $value | humanizeDuration }} old. Data freshness is severely degraded.
@@ -180,9 +268,17 @@ groups:
         labels:
           severity: warning
           service: data-core
+          component: runtime
           category: self-healing
         annotations:
           summary: "Self-healing is being throttled (possible recovery loop)"
+          system: "Data Core / Self-Healing"
+          problem: "Self-healing actions are repeatedly throttled."
+          impact: "The system is detecting a repeated failure pattern without clearing the root cause."
+          urgency: "MEDIA"
+          action: "Do not auto-restart blindly; inspect the underlying pipeline and recent suppressed actions."
+          evidence: "increase(self_healing_throttled_total[30m]) = {{ $value }}"
+          dashboard: "Data Core / Self-Healing"
           description: >
             {{ $value }} self-healing actions were suppressed by the rate limiter
             in the last 30 minutes. The self-healing system detected a stalled

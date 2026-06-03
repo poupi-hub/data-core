@@ -166,17 +166,3 @@ groups:
             outcome_pipeline_health_score = {{ $value | printf "%.0f" }}/100.
             The data-core outcome evaluation pipeline that feeds volatile runtime
             is degraded. Volatile calibration data may be stale.
-
-      - alert: VolatileDatasetBootstrapping
-        expr: >
-          outcome_bootstrap_phase == 1
-        for: 0m
-        labels:
-          severity: info
-          runtime: volatile
-        annotations:
-          summary: "Volatile dataset in bootstrap phase — outcomes accumulating"
-          description: >
-            outcome_bootstrap_phase = 1.
-            Less than 50 outcomes evaluated. Volatile hypothesis cannot be assessed yet.
-            Expected for the first 2-5 days. Monitor dataset_maturity_score for progression.

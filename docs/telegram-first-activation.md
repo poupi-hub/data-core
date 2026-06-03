@@ -2,7 +2,7 @@
 
 Data: 2026-05-26
 
-Objetivo: ativar alertas Telegram via Poupi System Bot sem remover o receiver webhook atual e sem commitar segredos.
+Objetivo: ativar alertas Telegram via Poupi System Bot sem commitar segredos.
 
 ## Estado Atual
 
@@ -10,7 +10,8 @@ Objetivo: ativar alertas Telegram via Poupi System Bot sem remover o receiver we
 - Alertmanager -> Poupi System Bot validado via `scripts/smoke-alertmanager-telegram.ps1`.
 - Alertas `[SHADOW]` criados em `prometheus/rules/poupi_telegram_shadow_alerts.yml`.
 - `promtool` validou 12 rules.
-- `alertmanager/alertmanager.yml` original permanece intacto.
+- `alertmanager/alertmanager.yml` original permanece como rollback/fallback operacional.
+- `operational-webhook` permanece como fallback para alertas que nao sejam `warning` ou `critical`.
 
 ## Arquivos
 
@@ -20,7 +21,7 @@ Objetivo: ativar alertas Telegram via Poupi System Bot sem remover o receiver we
 - `scripts/render-alertmanager-telegram-first.ps1`: renderiza config final em `runtime-data`.
 - `scripts/send-poupi-executive-summary.ps1`: envia summary executivo pelo Poupi System Bot.
 
-## Ativacao Shadow
+## Ativacao Runtime
 
 1. Renderizar config do Alertmanager:
 
@@ -28,7 +29,7 @@ Objetivo: ativar alertas Telegram via Poupi System Bot sem remover o receiver we
 powershell -ExecutionPolicy Bypass -File .\scripts\render-alertmanager-telegram-first.ps1
 ```
 
-2. Subir monitoring com override Telegram-first:
+2. Subir monitoring real com override Telegram-first:
 
 ```powershell
 docker-compose -f docker-compose.yml -f docker-compose.telegram-first.yml --profile monitoring up -d alertmanager prometheus
@@ -47,7 +48,7 @@ curl http://127.0.0.1:9090/-/ready
 curl http://127.0.0.1:9090/api/v1/rules
 ```
 
-5. Manter por 7 dias em shadow mode.
+5. Disparar um alerta sintetico com `severity=critical` ou `severity=warning` em Alertmanager e confirmar entrega no Telegram.
 
 ## Envio Manual Do Summary
 
@@ -61,9 +62,15 @@ Dry-run:
 powershell -ExecutionPolicy Bypass -File .\scripts\send-poupi-executive-summary.ps1 -DryRun
 ```
 
-## Criterios De Promocao
+## Roteamento
 
-Promover um alerta de `[SHADOW]` para producao somente quando:
+- `severity=critical` -> `poupi-system-bot-critical`
+- `severity=warning` -> `poupi-system-bot-warning`
+- demais alertas -> `operational-webhook`
+
+## Criterios De Manutencao
+
+Manter alertas em Telegram somente quando:
 
 - Dispara por causa real.
 - Tem baixa duplicidade.

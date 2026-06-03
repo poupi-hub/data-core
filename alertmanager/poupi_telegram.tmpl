@@ -1,33 +1,87 @@
-{{ define "poupi.telegram.status" -}}
-{{- if eq .Status "resolved" -}}RECOVERY{{- else -}}
-{{- if eq .CommonLabels.severity "critical" -}}CRITICAL{{- else if eq .CommonLabels.severity "warning" -}}WARNING{{- else -}}INFO{{- end -}}
+{{ define "poupi.telegram.urgency" -}}
+{{- if .CommonAnnotations.urgency -}}{{ .CommonAnnotations.urgency -}}
+{{- else if eq .CommonLabels.severity "critical" -}}CRITICA
+{{- else if eq .CommonLabels.severity "warning" -}}MEDIA
+{{- else -}}BAIXA{{- end -}}
+{{- end }}
+
+{{ define "poupi.telegram.system" -}}
+{{- if .CommonAnnotations.system -}}{{ .CommonAnnotations.system -}}
+{{- else if .CommonLabels.service -}}{{ .CommonLabels.service -}}
+{{- else if .CommonLabels.job -}}{{ .CommonLabels.job -}}
+{{- else -}}Poupi System{{- end -}}
+{{- if .CommonLabels.component }} / {{ .CommonLabels.component }}{{- end -}}
+{{- if .CommonLabels.runtime }} / {{ .CommonLabels.runtime }}{{- end -}}
+{{- end }}
+
+{{ define "poupi.telegram.problem" -}}
+{{- if .CommonAnnotations.problem -}}{{ .CommonAnnotations.problem -}}
+{{- else if .CommonAnnotations.summary -}}{{ .CommonAnnotations.summary -}}
+{{- else -}}{{ .CommonLabels.alertname -}}{{- end -}}
+{{- end }}
+
+{{ define "poupi.telegram.evidence" -}}
+{{- if .CommonAnnotations.evidence -}}{{ .CommonAnnotations.evidence -}}
+{{- else if .CommonAnnotations.description -}}{{ .CommonAnnotations.description -}}
+{{- else -}}
+{{- range .Alerts -}}
+{{- if .Annotations.description }}{{ .Annotations.description }}{{- else if .ValueString }}{{ .ValueString }}{{- end -}}
+{{- end -}}
 {{- end -}}
 {{- end }}
 
 {{ define "poupi.telegram.message" -}}
-<b>{{ template "poupi.telegram.status" . }} - {{ .CommonAnnotations.summary }}</b>
-{{- if .CommonLabels.component }}
-Component: {{ .CommonLabels.component }}
+{{- if eq .Status "resolved" -}}
+<b>RECOVERY</b>
+{{- else -}}
+<b>ALERTA</b>
 {{- end }}
+
+<b>Sistema:</b>
+{{ template "poupi.telegram.system" . }}
+
+<b>Problema:</b>
+{{ template "poupi.telegram.problem" . }}
+
+<b>Impacto:</b>
 {{- if .CommonAnnotations.impact }}
-Impact: {{ .CommonAnnotations.impact }}
+{{ .CommonAnnotations.impact }}
+{{- else }}
+Impacto operacional nao especificado na rule. Verificar causa raiz antes de agir.
 {{- end }}
+
+<b>Urgencia:</b>
+{{ template "poupi.telegram.urgency" . }}
+
+<b>Acao:</b>
 {{- if .CommonAnnotations.action }}
-Action: {{ .CommonAnnotations.action }}
+{{ .CommonAnnotations.action }}
+{{- else }}
+Abrir logs do componente, conferir metricas relacionadas e validar dependencias.
 {{- end }}
-{{- if .CommonAnnotations.dashboard }}
-Grafana: {{ .CommonAnnotations.dashboard }}
-{{- end }}
-Alerts: {{ len .Alerts }}
+
+<b>Evidencia:</b>
+{{ template "poupi.telegram.evidence" . }}
 {{- range .Alerts }}
 {{- if .Labels.instance }}
 Instance: {{ .Labels.instance }}
 {{- end }}
 {{- if .StartsAt }}
-Since: {{ .StartsAt.Format "2006-01-02 15:04:05 UTC" }}
+Desde: {{ .StartsAt.Format "2006-01-02 15:04:05 UTC" }}
 {{- end }}
 {{- if and (eq $.Status "resolved") .EndsAt }}
-Resolved: {{ .EndsAt.Format "2006-01-02 15:04:05 UTC" }}
+Resolvido: {{ .EndsAt.Format "2006-01-02 15:04:05 UTC" }}
 {{- end }}
+{{- end }}
+
+<b>Dashboard:</b>
+{{- if .CommonAnnotations.dashboard }}
+{{ .CommonAnnotations.dashboard }}
+{{- else }}
+Grafana / Operations
+{{- end }}
+{{- if gt (len .Alerts) 1 }}
+
+Alertas agrupados: {{ len .Alerts }}
 {{- end }}
 {{- end }}

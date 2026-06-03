@@ -1,0 +1,219 @@
+groups:
+
+  # ─────────────────────────────────────────────────────────────────────────────
+  # FASE 6 — Source Health Alerts (jobs + real_estate collectors)
+  # ─────────────────────────────────────────────────────────────────────────────
+  - name: source-health-alerts
+    interval: 120s
+    rules:
+
+      # Coletor sem sucesso ha mais de 2 ciclos (status CRITICAL ou BLOCKED)
+      - alert: CollectorHealthCritical
+        expr: source_health_score{category=~"jobs|real_estate"} < 30
+        for: 10m
+        labels:
+          severity: critical
+          service: data-core
+        annotations:
+          summary: "Coletor {{ $labels.collector_name }} com saude critica ({{ $value | printf \"%.0f\" }}/100)"
+          description: >
+            source_health_score{collector_name="{{ $labels.collector_name }}", category="{{ $labels.category }}"} = {{ $value | printf "%.1f" }}.
+            Score abaixo de 30 indica falhas repetidas, ausencia de dados recentes ou bloqueio.
+            Verificar logs do scheduler e status do endpoint alvo.
+
+      # Coletor degradado — pode recuperar sozinho, mas precisa de atencao
+      - alert: CollectorHealthDegraded
+        expr: source_health_score{category=~"jobs|real_estate"} < 60
+        for: 30m
+        labels:
+          severity: warning
+          service: data-core
+        annotations:
+          summary: "Coletor {{ $labels.collector_name }} degradado ({{ $value | printf \"%.0f\" }}/100)"
+          description: >
+            source_health_score = {{ $value | printf "%.1f" }} por mais de 30min.
+            Taxa de sucesso ou volume abaixo do esperado.
+            Investigar se houve mudancas no endpoint ou throttling.
+
+      # Coletor com taxa de sucesso muito baixa
+      - alert: CollectorLowSuccessRate
+        expr: jobs_success_rate < 0.5
+        for: 15m
+        labels:
+          severity: warning
+          service: data-core
+          category: jobs
+        annotations:
+          summary: "Coletor de vagas {{ $labels.collector_name }} com success_rate abaixo de 50%"
+          description: >
+            jobs_success_rate{collector_name="{{ $labels.collector_name }}"} = {{ $value | printf "%.2f" }}.
+            Mais da metade das execucoes falhando. Verificar logs e disponibilidade da API.
+
+      - alert: RealEstateCollectorLowSuccessRate
+        expr: real_estate_success_rate < 0.5
+        for: 15m
+        labels:
+          severity: warning
+          service: data-core
+          category: real_estate
+        annotations:
+          summary: "Coletor de imoveis {{ $labels.collector_name }} com success_rate abaixo de 50%"
+          description: >
+            real_estate_success_rate{collector_name="{{ $labels.collector_name }}"} = {{ $value | printf "%.2f" }}.
+            Verificar se site alvo esta respondendo corretamente.
+
+      # Coletor bloqueado — sem nenhum sucesso recente
+      - alert: CollectorBlocked
+        expr: jobs_failed_runs_total > 10 unless jobs_success_rate > 0
+        for: 5m
+        labels:
+          severity: critical
+          service: data-core
+          category: jobs
+        annotations:
+          summary: "Coletor de vagas {{ $labels.collector_name }} possivelmente bloqueado"
+          description: >
+            Mais de 10 falhas acumuladas sem nenhuma execucao bem-sucedida recente.
+            O endpoint pode ter bloqueado o coletor (rate limit, IP ban, mudanca de schema).
+
+  # ─────────────────────────────────────────────────────────────────────────────
+  # FASE 6 — Dataset Integrity Alerts (freshness, completeness, duplication)
+  # ─────────────────────────────────────────────────────────────────────────────
+  - name: dataset-integrity-alerts
+    interval: 300s
+    rules:
+
+      # Score de integridade geral baixo
+      - alert: JobsDatasetIntegrityLow
+        expr: etl_dataset_integrity_score{dataset="jobs", dimension="overall"} < 60
+        for: 20m
+        labels:
+          severity: warning
+          service: data-core
+          dataset: jobs
+        annotations:
+          summary: "Dataset de vagas com integridade baixa ({{ $value | printf \"%.0f\" }}/100) — fonte: {{ $labels.source }}"
+          description: >
+            etl_dataset_integrity_score{dataset="jobs", source="{{ $labels.source }}", dimension="overall"} = {{ $value | printf "%.1f" }}.
+            Score abaixo de 60 indica problemas de frescor, completude ou duplicacao.
+            Verificar compute_dataset_integrity_job e logs de coleta.
+
+      - alert: RealEstateDatasetIntegrityLow
+        expr: etl_dataset_integrity_score{dataset="real_estate", dimension="overall"} < 60
+        for: 20m
+        labels:
+          severity: warning
+          service: data-core
+          dataset: real_estate
+        annotations:
+          summary: "Dataset de imoveis com integridade baixa ({{ $value | printf \"%.0f\" }}/100) — fonte: {{ $labels.source }}"
+          description: >
+            etl_dataset_integrity_score{dataset="real_estate", source="{{ $labels.source }}", dimension="overall"} = {{ $value | printf "%.1f" }}.
+
+      # Frescor critico — dados muito antigos
+      - alert: JobsDatasetStale
+        expr: etl_dataset_integrity_score{dataset="jobs", dimension="freshness"} < 40
+        for: 15m
+        labels:
+          severity: critical
+          service: data-core
+          dataset: jobs
+        annotations:
+          summary: "Dataset de vagas desatualizado — freshness_score {{ $value | printf \"%.0f\" }}/100 (fonte: {{ $labels.source }})"
+          description: >
+            freshness_score < 40 indica que os registros mais recentes sao muito antigos.
+            Coletor pode estar falhando silenciosamente ou fonte parou de publicar.
+
+      - alert: RealEstateDatasetStale
+        expr: etl_dataset_integrity_score{dataset="real_estate", dimension="freshness"} < 40
+        for: 15m
+        labels:
+          severity: critical
+          service: data-core
+          dataset: real_estate
+        annotations:
+          summary: "Dataset de imoveis desatualizado — freshness_score {{ $value | printf \"%.0f\" }}/100 (fonte: {{ $labels.source }})"
+          description: >
+            freshness_score < 40. Os imoveis coletados podem estar desatualizados.
+
+      # Taxa de duplicacao anormal
+      - alert: JobsHighDuplicationRate
+        expr: jobs_duplicate_rate > 0.3
+        for: 20m
+        labels:
+          severity: warning
+          service: data-core
+          dataset: jobs
+        annotations:
+          summary: "Alta taxa de duplicatas no dataset de vagas — fonte {{ $labels.source }}: {{ $value | printf \"%.1f%%\" }}"
+          description: >
+            jobs_duplicate_rate{source="{{ $labels.source }}"} = {{ $value | printf "%.3f" }} ({{ $value | humanizePercentage }}).
+            Mais de 30% de duplicatas pode indicar problema no dedup, mudanca de external_id ou coleta redundante.
+
+      - alert: RealEstateHighDuplicationRate
+        expr: real_estate_duplicate_rate > 0.3
+        for: 20m
+        labels:
+          severity: warning
+          service: data-core
+          dataset: real_estate
+        annotations:
+          summary: "Alta taxa de duplicatas no dataset de imoveis — fonte {{ $labels.source }}: {{ $value | printf \"%.1f%%\" }}"
+          description: >
+            real_estate_duplicate_rate{source="{{ $labels.source }}"} = {{ $value | printf "%.3f" }}.
+
+      # Queda abrupta de volume (>50% em relacao ao dia anterior)
+      - alert: JobsVolumeDrop
+        expr: >
+          (
+            jobs_records_total
+            / on(source) (jobs_records_total offset 24h)
+          ) < 0.5
+        for: 30m
+        labels:
+          severity: warning
+          service: data-core
+          dataset: jobs
+        annotations:
+          summary: "Queda de volume no dataset de vagas — fonte {{ $labels.source }}: {{ $value | humanizePercentage }} do volume de ontem"
+          description: >
+            jobs_records_total{source="{{ $labels.source }}"} caiu mais de 50% em relacao a 24h atras.
+            Possivel causa: coletor com falhas, fonte removeu listagens, ou problema de dedup agressivo.
+
+      - alert: RealEstateVolumeDrop
+        expr: >
+          (
+            real_estate_records_total
+            / on(source) (real_estate_records_total offset 24h)
+          ) < 0.5
+        for: 30m
+        labels:
+          severity: warning
+          service: data-core
+          dataset: real_estate
+        annotations:
+          summary: "Queda de volume no dataset de imoveis — fonte {{ $labels.source }}: {{ $value | humanizePercentage }} do volume de ontem"
+          description: >
+            real_estate_records_total{source="{{ $labels.source }}"} caiu mais de 50%.
+            Verificar se sitemap/feed da imobiliaria mudou.
+
+  # ─────────────────────────────────────────────────────────────────────────────
+  # FASE 6 — Observability Job Health
+  # ─────────────────────────────────────────────────────────────────────────────
+  - name: observability-job-alerts
+    interval: 300s
+    rules:
+
+      # Job de observabilidade demorou mais do que o esperado
+      - alert: ObservabilityJobSlow
+        expr: >
+          histogram_quantile(0.95, rate(observability_job_duration_seconds_bucket[30m])) > 120
+        for: 0m
+        labels:
+          severity: warning
+          service: data-core
+        annotations:
+          summary: "Job de observabilidade {{ $labels.job_name }} lento (p95 > 120s)"
+          description: >
+            O job {{ $labels.job_name }} esta levando mais de 2 minutos no percentil 95.
+            Pode indicar lentidao de banco ou queries pesadas. Verificar indice em computed_at.

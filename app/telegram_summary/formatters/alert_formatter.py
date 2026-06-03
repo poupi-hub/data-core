@@ -1,44 +1,48 @@
-"""Format AlertPayload into a ≤20-line HTML Telegram message.
-
-Output example (warning)
-────────────────────────
-⚠️ <b>Alerta: Safe Mode Ativo</b>
-
-Sistema em Safe Mode. Score: 58/100. Status: DEGRADED
-
-  <b>Score:</b> 58/100
-  <b>Runtime:</b> 72
-  <b>Dataset:</b> 90
-  <b>Status:</b> DEGRADED
-
-<i>27/05/2026 14:32 UTC · data-core</i>
-"""
+"""Format immediate Telegram alerts as action-oriented HTML messages."""
 
 from __future__ import annotations
 
 from app.telegram_summary.dto import AlertPayload
 
 _SEVERITY_ICON: dict[str, str] = {
-    "warning": "⚠️",
-    "critical": "🚨",
+    "warning": "&#9888;&#65039;",
+    "critical": "&#128680;",
 }
 
 
 def format_alert(payload: AlertPayload) -> str:
-    """Return an HTML-formatted immediate alert message (≤20 lines)."""
-    icon = _SEVERITY_ICON.get(payload.severity, "❔")
+    """Return an HTML-formatted immediate alert message."""
+    icon = _SEVERITY_ICON.get(payload.severity, "?")
     ts = payload.generated_at.strftime("%d/%m/%Y %H:%M UTC")
+    urgency = "CRITICA" if payload.severity == "critical" else "MEDIA"
+    evidence = "; ".join(
+        f"{key}={value}" for key, value in list((payload.details or {}).items())[:5]
+    ) or payload.alert_type
 
     lines: list[str] = [
-        f"{icon} <b>Alerta: {payload.title}</b>",
+        f"{icon} <b>ALERTA</b>",
         "",
+        "<b>Sistema:</b>",
+        "Data Core / Operational Truth",
+        "",
+        "<b>Problema:</b>",
+        payload.title,
+        "",
+        "<b>Impacto:</b>",
         payload.message,
+        "",
+        "<b>Urgencia:</b>",
+        urgency,
+        "",
+        "<b>Acao:</b>",
+        "Verificar /health/operational, dashboards operacionais e logs do componente afetado.",
+        "",
+        "<b>Evidencia:</b>",
+        evidence,
+        "",
+        "<b>Dashboard:</b>",
+        "Data Core / Operational Truth",
+        "",
+        f"<i>{ts} - data-core</i>",
     ]
-
-    if payload.details:
-        lines.append("")
-        for key, value in list(payload.details.items())[:5]:  # max 5 detail lines
-            lines.append(f"  <b>{key}:</b> {value}")
-
-    lines += ["", f"<i>{ts} · data-core</i>"]
     return "\n".join(lines)
