@@ -233,6 +233,16 @@ class EcommerceURLScraper:
                     collection_failed_total.labels(**_labels).inc()
                     errors += 1
 
+                # Commit after each target so the DB connection is not left
+                # idle-in-transaction between HTTP fetches. Neon enforces a
+                # strict idle-in-transaction timeout (30 s) that terminates
+                # the connection and causes PendingRollbackError cascades on
+                # subsequent saves within the same session.
+                try:
+                    self.db.commit()
+                except Exception:
+                    self.db.rollback()
+
                 if self.delay_seconds > 0:
                     await asyncio.sleep(self.delay_seconds)
 
