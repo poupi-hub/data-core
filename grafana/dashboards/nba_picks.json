@@ -1,0 +1,231 @@
+{
+  "title": "NBA Picks Pipeline",
+  "uid": "nba-picks-v1",
+  "tags": ["nba", "picks", "paper-betting"],
+  "timezone": "browser",
+  "refresh": "1m",
+  "schemaVersion": 39,
+  "panels": [
+    {
+      "id": 1,
+      "title": "Total Picks Captured",
+      "type": "stat",
+      "gridPos": {"x": 0, "y": 0, "w": 4, "h": 4},
+      "targets": [
+        {
+          "expr": "sum(nba_picks_total)",
+          "legendFormat": "Total Picks"
+        }
+      ],
+      "options": {"colorMode": "background", "graphMode": "area"}
+    },
+    {
+      "id": 2,
+      "title": "Global ROI (%)",
+      "type": "stat",
+      "gridPos": {"x": 4, "y": 0, "w": 4, "h": 4},
+      "targets": [
+        {
+          "expr": "nba_global_roi",
+          "legendFormat": "ROI %"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "thresholds": {
+            "steps": [
+              {"color": "red", "value": null},
+              {"color": "yellow", "value": 0},
+              {"color": "green", "value": 5}
+            ]
+          }
+        }
+      },
+      "options": {"colorMode": "background"}
+    },
+    {
+      "id": 3,
+      "title": "Global Win Rate (%)",
+      "type": "stat",
+      "gridPos": {"x": 8, "y": 0, "w": 4, "h": 4},
+      "targets": [
+        {
+          "expr": "nba_global_win_rate",
+          "legendFormat": "Win Rate"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "thresholds": {
+            "steps": [
+              {"color": "red", "value": null},
+              {"color": "yellow", "value": 52},
+              {"color": "green", "value": 55}
+            ]
+          }
+        }
+      },
+      "options": {"colorMode": "background"}
+    },
+    {
+      "id": 4,
+      "title": "Global PnL (units)",
+      "type": "stat",
+      "gridPos": {"x": 12, "y": 0, "w": 4, "h": 4},
+      "targets": [
+        {
+          "expr": "nba_global_pnl",
+          "legendFormat": "PnL"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {
+            "steps": [
+              {"color": "red", "value": null},
+              {"color": "yellow", "value": 0},
+              {"color": "green", "value": 5}
+            ]
+          }
+        }
+      },
+      "options": {"colorMode": "background"}
+    },
+    {
+      "id": 5,
+      "title": "Parse Errors",
+      "type": "stat",
+      "gridPos": {"x": 16, "y": 0, "w": 4, "h": 4},
+      "targets": [
+        {
+          "expr": "sum(nba_parse_errors_total)",
+          "legendFormat": "Parse Errors"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {
+            "steps": [
+              {"color": "green", "value": null},
+              {"color": "yellow", "value": 5},
+              {"color": "red", "value": 20}
+            ]
+          }
+        }
+      },
+      "options": {"colorMode": "background"}
+    },
+    {
+      "id": 6,
+      "title": "Picks by Type (rate)",
+      "type": "timeseries",
+      "gridPos": {"x": 0, "y": 4, "w": 12, "h": 8},
+      "targets": [
+        {
+          "expr": "sum by (pick_type) (rate(nba_picks_total[5m]))",
+          "legendFormat": "{{pick_type}}"
+        }
+      ]
+    },
+    {
+      "id": 7,
+      "title": "Picks by Source (rate)",
+      "type": "timeseries",
+      "gridPos": {"x": 12, "y": 4, "w": 12, "h": 8},
+      "targets": [
+        {
+          "expr": "sum by (source) (rate(nba_picks_total[5m]))",
+          "legendFormat": "{{source}}"
+        }
+      ]
+    },
+    {
+      "id": 8,
+      "title": "ROI by Source (%)",
+      "type": "bargauge",
+      "gridPos": {"x": 0, "y": 12, "w": 12, "h": 8},
+      "targets": [
+        {
+          "expr": "nba_source_roi",
+          "legendFormat": "{{source}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "thresholds": {
+            "steps": [
+              {"color": "red", "value": null},
+              {"color": "yellow", "value": 0},
+              {"color": "green", "value": 5}
+            ]
+          }
+        }
+      },
+      "options": {"orientation": "horizontal"}
+    },
+    {
+      "id": 9,
+      "title": "Win Rate by Source (%)",
+      "type": "bargauge",
+      "gridPos": {"x": 12, "y": 12, "w": 12, "h": 8},
+      "targets": [
+        {
+          "expr": "nba_source_win_rate",
+          "legendFormat": "{{source}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "thresholds": {
+            "steps": [
+              {"color": "red", "value": null},
+              {"color": "yellow", "value": 52},
+              {"color": "green", "value": 55}
+            ]
+          }
+        }
+      },
+      "options": {"orientation": "horizontal"}
+    },
+    {
+      "id": 10,
+      "title": "PnL by Source (units)",
+      "type": "bargauge",
+      "gridPos": {"x": 0, "y": 20, "w": 12, "h": 8},
+      "targets": [
+        {
+          "expr": "nba_source_pnl",
+          "legendFormat": "{{source}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {
+            "steps": [
+              {"color": "red", "value": null},
+              {"color": "yellow", "value": 0},
+              {"color": "green", "value": 5}
+            ]
+          }
+        }
+      },
+      "options": {"orientation": "horizontal"}
+    },
+    {
+      "id": 11,
+      "title": "Bets Settled by Result",
+      "type": "piechart",
+      "gridPos": {"x": 12, "y": 20, "w": 12, "h": 8},
+      "targets": [
+        {
+          "expr": "sum by (result) (nba_bets_settled_total)",
+          "legendFormat": "{{result}}"
+        }
+      ]
+    }
+  ]
+}

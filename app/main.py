@@ -1,3 +1,4 @@
+import os
 import threading
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
@@ -14,6 +15,7 @@ import app.incident_bus.models  # noqa: F401 — ensure incident_events table is
 import app.incident_history.models  # noqa: F401 — ensure incident_history + incident_patterns tables registered
 import app.modules.trading.validation.models  # noqa: F401 — ensure TradingSignalOutcome table registered
 import app.scrapers.models  # noqa: F401 — ensure ScraperDriftEvent table is registered
+import app.modules.nba.models  # noqa: F401 — ensure NBA tables registered
 import app.watchdog.models  # noqa: F401 — ensure WatchdogRun + TelegramPublicationEvent registered
 from api.auth import verify_api_key
 from api.live_metrics_updater import refresh_live_metrics
@@ -32,6 +34,7 @@ from app.incident_bus.router import router as incident_bus_router
 from app.incident_history.router import router as incident_history_router
 from app.middleware.correlation import CorrelationMiddleware
 from app.modules.crypto.api import router as crypto_router
+from app.modules.nba.api import router as nba_router
 from app.modules.real_estate import models as real_estate_models
 from app.modules.real_estate.api import router as real_estate_router
 from app.modules.registry import register_pipeline_modules
@@ -66,6 +69,7 @@ _ = pipeline_models
 _ = app.scrapers.models
 _ = app.watchdog.models
 _ = app.modules.trading.validation.models
+_ = app.modules.nba.models
 
 
 def _metrics_refresh_loop(stop_event: threading.Event, interval: int = 60) -> None:
@@ -231,6 +235,19 @@ def create_app() -> FastAPI:
         )
 
     # ── Routers ───────────────────────────────────────────────────────────────
+    @app.get("/build-info", tags=["observability"], include_in_schema=False)
+    def build_info() -> dict[str, str | None]:
+        vcs_ref = os.getenv("VCS_REF") or os.getenv("SOURCE_COMMIT") or os.getenv("COMMIT_SHA")
+        return {
+            "revision": vcs_ref,
+            "vcs_ref": vcs_ref,
+            "build_timestamp": os.getenv("BUILD_TIMESTAMP"),
+            "build_source": os.getenv("BUILD_SOURCE"),
+            "source_state": os.getenv("SOURCE_STATE", "unknown"),
+            "image_tag": os.getenv("IMAGE_TAG"),
+            "coolify_resource_uuid": os.getenv("COOLIFY_RESOURCE_UUID"),
+        }
+
     auth_dep = [Depends(verify_api_key)]
     app.include_router(system_status_router)
     app.include_router(api_router, dependencies=auth_dep)
@@ -241,6 +258,7 @@ def create_app() -> FastAPI:
     app.include_router(crypto_router, dependencies=auth_dep)
     app.include_router(real_estate_router, dependencies=auth_dep)
     app.include_router(sports_odds_router, dependencies=auth_dep)
+    app.include_router(nba_router, dependencies=auth_dep)
     app.include_router(scrapers_router, dependencies=auth_dep)
     app.include_router(runtime_router, dependencies=auth_dep)
     app.include_router(watchdog_router, dependencies=auth_dep)
