@@ -85,9 +85,9 @@ def test_risk_compute_zero_reliability_many_incidents():
 
 def test_risk_compute_critical():
     # 0% reliability + 6 incidents + 60-min MTTR + 0% heal rate
+    # (1-0)*40=40 + min(6,6)*5=30 + min(60min*0.5,20)=20 + (1-0)*10=10 = 100
     result = RiskScorer._compute("bad", 0.0, 6, 3600.0, 0.0)
-    # 40 + 30 + min(30*0.5,20)=15 + 10 = 95
-    assert result.risk_score == pytest.approx(95.0)
+    assert result.risk_score == pytest.approx(100.0)
     assert result.risk == RISK_CRITICAL
 
 
