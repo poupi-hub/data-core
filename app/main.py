@@ -13,7 +13,9 @@ from sqlalchemy import text
 import api.live_metrics  # noqa: F401 — registers Phase Q Prometheus Gauges in this process
 import app.incident_bus.models  # noqa: F401 — ensure incident_events table is registered
 import app.incident_history.models  # noqa: F401 — ensure incident_history + incident_patterns tables registered
-import app.modules.trading.validation.models  # noqa: F401 — ensure TradingSignalOutcome table registered
+import app.modules.trading.validation.models  # noqa: F401
+import app.modules.crypto.edge.models  # noqa: F401 — ensure trading_edge_outcomes table registered — ensure TradingSignalOutcome table registered
+import app.modules.crypto.edge.forward_model  # noqa: F401 — ensure forward_shadow_signals table registered
 import app.scrapers.models  # noqa: F401 — ensure ScraperDriftEvent table is registered
 import app.modules.nba.models  # noqa: F401 — ensure NBA tables registered
 import app.modules.nba.quant.models  # noqa: F401 — ensure NBA quant tables registered
@@ -35,6 +37,7 @@ from app.incident_bus.router import router as incident_bus_router
 from app.incident_history.router import router as incident_history_router
 from app.middleware.correlation import CorrelationMiddleware
 from app.modules.crypto.api import router as crypto_router
+from app.modules.crypto.edge.api import router as edge_router
 from app.modules.nba.api import router as nba_router
 from app.modules.nba.quant.api import router as nba_quant_router
 from app.modules.real_estate import models as real_estate_models
@@ -259,6 +262,7 @@ def create_app() -> FastAPI:
     app.include_router(documentation_router, dependencies=auth_dep)
     app.include_router(data_quality_router, dependencies=auth_dep)
     app.include_router(crypto_router, dependencies=auth_dep)
+    app.include_router(edge_router, dependencies=auth_dep)
     app.include_router(real_estate_router, dependencies=auth_dep)
     app.include_router(sports_odds_router, dependencies=auth_dep)
     app.include_router(nba_router, dependencies=auth_dep)
