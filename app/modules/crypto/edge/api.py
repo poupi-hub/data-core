@@ -175,3 +175,37 @@ def compute_forward_shadow(
     """
     tracker = ForwardShadowTracker()
     return tracker.run(db)
+
+
+# ---------------------------------------------------------------------------
+# Phase 9 endpoints
+# ---------------------------------------------------------------------------
+
+
+@router.get("/readiness")
+def get_readiness_report(
+    db: Session = Depends(db_session),  # noqa: B008
+) -> dict[str, Any]:
+    """Phase 9 Forward Validation Readiness Panel.
+
+    Provides per-horizon (24h / 72h / 168h):
+    - Readiness score: BOOTSTRAP / EARLY_SAMPLE / MODERATE_SAMPLE / STATISTICALLY_RELEVANT
+    - Sample gates: n >= 10 / 30 / 100
+    - 95 % confidence intervals: win rate (Wilson), avg_return (normal), PF (delta)
+    - Edge status: INSUFFICIENT_DATA / NO_EDGE / POSSIBLE_EDGE / EDGE_DETECTED
+
+    Plus overall_verdict (GO / WATCH / NO_GO / INSUFFICIENT_DATA).
+    """
+    from app.modules.crypto.edge.readiness import build_readiness_report
+
+    return build_readiness_report(db)
+
+
+@router.post("/daily-summary")
+def send_daily_summary_endpoint(
+    db: Session = Depends(db_session),  # noqa: B008
+) -> dict[str, Any]:
+    """Send Phase 9 daily Telegram summary and return send metadata."""
+    from app.modules.crypto.edge.readiness import send_daily_summary
+
+    return send_daily_summary(db)
