@@ -493,3 +493,111 @@ def watchdog_anomalies(
         "total": len(anomalies),
         "anomalies": [a.to_dict() for a in anomalies],
     }
+
+
+# ════════════════════════════════════════════════════════════════════
+# Phase 5 — Operational Intelligence
+# ════════════════════════════════════════════════════════════════════
+
+@router.get("/executive-summary", summary="Weekly executive report with risk, recommendations, rankings (Phase 5)")
+def watchdog_executive_summary(
+    hours: int = Query(168, ge=24, le=8760, description="History window (default 7d)"),
+    fmt: str = Query("json", description="json | text | telegram_daily | telegram_weekly"),
+) -> Any:
+    """Generate a weekly executive report combining all operational signals.
+
+    Includes: overall reliability score/grade, top incident causes (7d/30d),
+    worst services ranking, healer effectiveness, risk by service,
+    forecast risks, and prioritised recommendations.
+
+    fmt=text       → human-readable plain text
+    fmt=json       → structured dict
+    fmt=telegram_daily  → compact Telegram digest
+    fmt=telegram_weekly → full Telegram executive summary
+    """
+    from app.auto_healing.intelligence import ExecutiveReporter
+    report = ExecutiveReporter().generate(window_hours=hours)
+    if fmt == "text":
+        return {"text": report.to_text()}
+    if fmt in ("telegram_daily", "telegram_weekly"):
+        mode = "daily" if fmt == "telegram_daily" else "weekly"
+        return {"text": report.to_telegram(mode=mode)}
+    return report.to_dict()
+
+
+@router.get("/recommendations", summary="Rule-based actionable recommendations per service (Phase 5)")
+def watchdog_recommendations(
+    hours: int = Query(168, ge=24, le=8760, description="History window"),
+    priority: str | None = Query(None, description="Filter: HIGH | MEDIUM | LOW"),
+    service: str | None = Query(None, description="Filter by service name"),
+) -> dict[str, Any]:
+    """Return prioritised recommendations generated from operational data.
+
+    Rules fire on hard thresholds — deterministic, no ML.
+    Categories: healer, reliability, operational, risk, forecast.
+
+    Examples:
+      workers success_rate=33% → "investigar root cause"
+      redis   success_rate=100% → "healer confiável"
+      score < 60               → "investigar causa raiz do downtime"
+      MTTR > 30 min            → "healer pode não resolver causa raiz"
+    """
+    from app.auto_healing.intelligence import RecommendationsEngine
+    recs = RecommendationsEngine().generate(window_hours=hours)
+    if priority:
+        recs = [r for r in recs if r.priority == priority.upper()]
+    if service:
+        recs = [r for r in recs if r.service == service]
+    by_priority: dict[str, list] = {"HIGH": [], "MEDIUM": [], "LOW": []}
+    for r in recs:
+        by_priority.setdefault(r.priority, []).append(r.to_dict())
+    return {
+        "window_hours": hours,
+        "generated_at": datetime.now(tz=timezone.utc).isoformat(),
+        "total": len(recs),
+        "by_priority": by_priority,
+        "recommendations": [r.to_dict() for r in recs],
+    }
+
+
+@router.get("/risk-score", summary="Risk level (LOW/MEDIUM/HIGH/CRITICAL) per service (Phase 5)")
+def watchdog_risk_score(
+    hours: int = Query(168, ge=24, le=8760, description="History window"),
+    min_risk: str | None = Query(None, description="Filter: LOW | MEDIUM | HIGH | CRITICAL"),
+) -> dict[str, Any]:
+    """Return risk assessment per service.
+
+    Risk score (0-100): reliability component (max 40) + incident volume (max 30)
+    + MTTR component (max 20) + heal rate component (max 10).
+
+    Thresholds: CRITICAL ≥ 75, HIGH ≥ 50, MEDIUM ≥ 25, LOW < 25.
+    """
+    from app.auto_healing.intelligence import (
+        _RISK_THRESHOLDS,
+        RISK_CRITICAL,
+        RISK_HIGH,
+        RISK_LOW,
+        RISK_MEDIUM,
+        RiskScorer,
+    )
+    assessments = RiskScorer().score_all(window_hours=hours)
+    _risk_order = {RISK_CRITICAL: 0, RISK_HIGH: 1, RISK_MEDIUM: 2, RISK_LOW: 3}
+    if min_risk:
+        min_level = min_risk.upper()
+        min_ord = _risk_order.get(min_level, 3)
+        assessments = [a for a in assessments if _risk_order.get(a.risk, 3) <= min_ord]
+    summary = {RISK_CRITICAL: 0, RISK_HIGH: 0, RISK_MEDIUM: 0, RISK_LOW: 0}
+    for a in assessments:
+        summary[a.risk] = summary.get(a.risk, 0) + 1
+    overall = (
+        min(assessments, key=lambda a: _risk_order.get(a.risk, 3)).risk
+        if assessments else RISK_LOW
+    )
+    return {
+        "window_hours": hours,
+        "computed_at": datetime.now(tz=timezone.utc).isoformat(),
+        "overall_risk": overall,
+        "summary": summary,
+        "thresholds": _RISK_THRESHOLDS,
+        "services": [a.to_dict() for a in assessments],
+    }
