@@ -16,6 +16,7 @@ import app.incident_history.models  # noqa: F401 — ensure incident_history + i
 import app.modules.trading.validation.models  # noqa: F401 — ensure TradingSignalOutcome table registered
 import app.scrapers.models  # noqa: F401 — ensure ScraperDriftEvent table is registered
 import app.modules.nba.models  # noqa: F401 — ensure NBA tables registered
+import app.modules.nba.quant.models  # noqa: F401 — ensure NBA quant tables registered
 import app.watchdog.models  # noqa: F401 — ensure WatchdogRun + TelegramPublicationEvent registered
 from api.auth import verify_api_key
 from api.live_metrics_updater import refresh_live_metrics
@@ -35,6 +36,7 @@ from app.incident_history.router import router as incident_history_router
 from app.middleware.correlation import CorrelationMiddleware
 from app.modules.crypto.api import router as crypto_router
 from app.modules.nba.api import router as nba_router
+from app.modules.nba.quant.api import router as nba_quant_router
 from app.modules.real_estate import models as real_estate_models
 from app.modules.real_estate.api import router as real_estate_router
 from app.modules.registry import register_pipeline_modules
@@ -70,6 +72,7 @@ _ = app.scrapers.models
 _ = app.watchdog.models
 _ = app.modules.trading.validation.models
 _ = app.modules.nba.models
+_ = app.modules.nba.quant.models
 
 
 def _metrics_refresh_loop(stop_event: threading.Event, interval: int = 60) -> None:
@@ -259,6 +262,7 @@ def create_app() -> FastAPI:
     app.include_router(real_estate_router, dependencies=auth_dep)
     app.include_router(sports_odds_router, dependencies=auth_dep)
     app.include_router(nba_router, dependencies=auth_dep)
+    app.include_router(nba_quant_router, dependencies=auth_dep)
     app.include_router(scrapers_router, dependencies=auth_dep)
     app.include_router(runtime_router, dependencies=auth_dep)
     app.include_router(watchdog_router, dependencies=auth_dep)

@@ -1,0 +1,151 @@
+{
+  "title": "NBA Quant Engine",
+  "uid": "nba-quant-v1",
+  "tags": ["nba", "quant", "edge"],
+  "timezone": "browser",
+  "refresh": "5m",
+  "schemaVersion": 39,
+  "panels": [
+    {
+      "id": 1,
+      "title": "Total Games",
+      "type": "stat",
+      "gridPos": {"x": 0, "y": 0, "w": 4, "h": 4},
+      "targets": [{"expr": "nba_q_total_games", "legendFormat": "Games"}],
+      "options": {"colorMode": "background", "graphMode": "none"}
+    },
+    {
+      "id": 2,
+      "title": "Total Signals",
+      "type": "stat",
+      "gridPos": {"x": 4, "y": 0, "w": 4, "h": 4},
+      "targets": [{"expr": "nba_q_total_signals", "legendFormat": "Signals"}],
+      "options": {"colorMode": "background", "graphMode": "none"}
+    },
+    {
+      "id": 3,
+      "title": "Global ROI (%)",
+      "type": "stat",
+      "gridPos": {"x": 8, "y": 0, "w": 4, "h": 4},
+      "targets": [{"expr": "nba_q_global_roi", "legendFormat": "ROI"}],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "thresholds": {
+            "steps": [
+              {"color": "red", "value": null},
+              {"color": "yellow", "value": 0},
+              {"color": "green", "value": 5}
+            ]
+          }
+        }
+      },
+      "options": {"colorMode": "background"}
+    },
+    {
+      "id": 4,
+      "title": "Global PnL (units)",
+      "type": "stat",
+      "gridPos": {"x": 12, "y": 0, "w": 4, "h": 4},
+      "targets": [{"expr": "nba_q_global_pnl", "legendFormat": "PnL"}],
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {
+            "steps": [
+              {"color": "red", "value": null},
+              {"color": "yellow", "value": 0},
+              {"color": "green", "value": 10}
+            ]
+          }
+        }
+      },
+      "options": {"colorMode": "background"}
+    },
+    {
+      "id": 5,
+      "title": "Setup ROI (%) — Ranking",
+      "type": "bargauge",
+      "gridPos": {"x": 0, "y": 4, "w": 12, "h": 8},
+      "targets": [{"expr": "nba_q_setup_roi", "legendFormat": "{{setup}}"}],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "thresholds": {
+            "steps": [
+              {"color": "red", "value": null},
+              {"color": "yellow", "value": 0},
+              {"color": "green", "value": 5}
+            ]
+          }
+        }
+      },
+      "options": {"orientation": "horizontal"}
+    },
+    {
+      "id": 6,
+      "title": "Setup Win Rate (%) — Ranking",
+      "type": "bargauge",
+      "gridPos": {"x": 12, "y": 4, "w": 12, "h": 8},
+      "targets": [{"expr": "nba_q_setup_win_rate", "legendFormat": "{{setup}}"}],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "thresholds": {
+            "steps": [
+              {"color": "red", "value": null},
+              {"color": "yellow", "value": 52},
+              {"color": "green", "value": 55}
+            ]
+          }
+        }
+      },
+      "options": {"orientation": "horizontal"}
+    },
+    {
+      "id": 7,
+      "title": "Edge Classification",
+      "type": "bargauge",
+      "gridPos": {"x": 0, "y": 12, "w": 12, "h": 6},
+      "targets": [{"expr": "nba_q_setup_classification", "legendFormat": "{{setup}}"}],
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {
+            "steps": [
+              {"color": "red", "value": -1},
+              {"color": "yellow", "value": 0},
+              {"color": "green", "value": 1}
+            ]
+          },
+          "mappings": [
+            {"type": "value", "options": {"-1": {"text": "LOSING"}, "0": {"text": "NEUTRAL"}, "1": {"text": "PROFITABLE"}}}
+          ]
+        }
+      },
+      "options": {"orientation": "horizontal"}
+    },
+    {
+      "id": 8,
+      "title": "Signals Generated (rate)",
+      "type": "timeseries",
+      "gridPos": {"x": 12, "y": 12, "w": 12, "h": 6},
+      "targets": [
+        {
+          "expr": "sum by (setup) (rate(nba_q_signals_total[1h]))",
+          "legendFormat": "{{setup}}"
+        }
+      ]
+    },
+    {
+      "id": 9,
+      "title": "Bets Settled by Setup & Result",
+      "type": "timeseries",
+      "gridPos": {"x": 0, "y": 18, "w": 24, "h": 8},
+      "targets": [
+        {
+          "expr": "sum by (setup, result) (nba_q_bets_settled_total)",
+          "legendFormat": "{{setup}} / {{result}}"
+        }
+      ]
+    }
+  ]
+}

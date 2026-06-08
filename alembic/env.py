@@ -8,6 +8,7 @@ from app.data_quality import models as data_quality_models
 from app.documentation import models as documentation_models
 from app.modules.real_estate import models as real_estate_models
 from app.modules.nba import models as nba_models
+from app.modules.nba.quant import models as nba_quant_models
 from app.modules.sports_odds import models as sports_odds_models
 from app.normalization import models as normalization_models
 from app.raw import models as raw_models
@@ -16,6 +17,7 @@ from database.models import Base
 
 _ = real_estate_models
 _ = nba_models
+_ = nba_quant_models
 _ = sports_odds_models
 _ = raw_models
 _ = normalization_models
