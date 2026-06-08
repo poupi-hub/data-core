@@ -1,7 +1,7 @@
 """add_nba_picks_pipeline
 
 Revision ID: 34735fc7e2a2
-Revises: 0027_merge_jobs_and_incidents
+Revises: 0028_signal_edge_outcomes
 Create Date: 2026-06-07 19:52:30.360026
 """
 
@@ -11,7 +11,7 @@ import sqlalchemy as sa
 from alembic import op
 
 revision: str = "34735fc7e2a2"
-down_revision: str | None = "0027_merge_jobs_and_incidents"
+down_revision: str | None = "0028_signal_edge_outcomes"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 
