@@ -1,0 +1,83 @@
+## Critical-only alert rules.
+##
+## These are the ONLY alerts that route to Telegram.
+## Everything else is handled internally by the auto-healing watchdog
+## (Detect → Heal → Verify → Notify).
+##
+## Alert inventory:
+##   1. APIDown          — any tracked API is unreachable for 2m
+##   2. SchedulerStopped — scheduler heartbeat stale > 15m
+##   3. WorkerStopped    — worker heartbeat stale > 15m
+##   4. RedisDown        — Redis ping fails for 2m
+##   5. PostgresDown     — Postgres unreachable for 2m
+
+groups:
+  - name: critical-only
+    interval: 30s
+    rules:
+
+      - alert: APIDown
+        expr: up{job=~"data-core-api|poupi-baby-api|poupi-crypto-api"} == 0
+        for: 2m
+        labels:
+          severity: critical
+          channel: telegram
+        annotations:
+          summary: "API down: {{ $labels.job }}"
+          description: >
+            Prometheus cannot scrape {{ $labels.job }} for more than 2 minutes.
+            The service may be crashed, OOM-killed, or unreachable.
+          action: "Check container health, logs, and recent deploy changes."
+
+      - alert: SchedulerStopped
+        expr: scheduler_heartbeat_age_seconds > 900
+        for: 5m
+        labels:
+          severity: critical
+          channel: telegram
+        annotations:
+          summary: "Scheduler heartbeat stale ({{ $value | humanizeDuration }})"
+          description: >
+            The data-core scheduler has not written a heartbeat for more than
+            15 minutes. Jobs may not be running.
+          action: "Check data-core-scheduler container, APScheduler logs, and memory usage."
+
+      - alert: WorkerStopped
+        expr: |
+          (time() - data_core_worker_last_heartbeat_epoch) > 900
+        for: 5m
+        labels:
+          severity: critical
+          channel: telegram
+        annotations:
+          summary: "Worker heartbeat stale ({{ $value | humanizeDuration }})"
+          description: >
+            The data-core worker has not written a heartbeat for more than
+            15 minutes. Pipeline processing may be stalled.
+          action: "Check data-core-worker container and BullMQ queue depth."
+
+      - alert: RedisDown
+        expr: redis_up == 0
+        for: 2m
+        labels:
+          severity: critical
+          channel: telegram
+        annotations:
+          summary: "Redis is unreachable"
+          description: >
+            Redis has been unreachable for more than 2 minutes.
+            BullMQ queues, caching, and session storage are affected.
+          action: "Check Redis container health and network connectivity."
+
+      - alert: PostgresDown
+        expr: up{job="postgres-exporter"} == 0
+        for: 2m
+        labels:
+          severity: critical
+          channel: telegram
+        annotations:
+          summary: "PostgreSQL is unreachable"
+          description: >
+            The postgres-exporter cannot reach PostgreSQL for more than 2 minutes.
+            All database-backed services are likely failing.
+          action: "Check PostgreSQL container health, disk space, and connection pool."
