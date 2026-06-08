@@ -56,7 +56,7 @@ def _find_compose_container(service_name: str) -> str | None:
         if not project:
             logger.warning("container_healer: %s env not set", _PROJECT_UUID_ENV)
             return None
-        containers = client.containers.list(filters={
+        containers = client.containers.list(all=True, filters={
             "label": [
                 f"com.docker.compose.project={project}",
                 f"com.docker.compose.service={service_name}",
