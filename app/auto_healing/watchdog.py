@@ -19,7 +19,7 @@ from sqlalchemy.orm import Session
 
 from app.auto_healing.analytics import MetricsCollector
 from app.auto_healing.cooldown import CircuitBreaker, CooldownManager
-from app.auto_healing.healer import find_healer, run_healers
+from app.auto_healing.healer import find_healer
 from app.auto_healing.health_checker import HealthChecker
 from app.auto_healing.incident_classifier import IncidentClassifier
 from app.auto_healing.models import (
