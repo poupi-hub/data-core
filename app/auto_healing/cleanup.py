@@ -427,9 +427,12 @@ class OldTaggedImageCleanup:
 
             # Sort each repo's images by creation time descending
             for repo in repo_images:
-                repo_images[repo].sort(
-                    key=lambda i: i.attrs.get("Created", ""), reverse=True
-                )
+                try:
+                    repo_images[repo].sort(
+                        key=lambda i: i.attrs.get("Created", ""), reverse=True
+                    )
+                except Exception:
+                    pass  # attrs race — leave order as-is, protected_ids may be incomplete
 
             # Build set of protected image IDs (most recent N per repo)
             protected_ids: set[str] = set()
@@ -441,28 +444,34 @@ class OldTaggedImageCleanup:
             candidates: list = []
 
             for img in all_images:
-                if not img.tags:
-                    continue  # dangling — handled by DanglingImageCleanup
+                try:
+                    if not img.tags:
+                        continue  # dangling — handled by DanglingImageCleanup
 
-                if img.id in in_use_ids:
+                    if img.id in in_use_ids:
+                        result.items_skipped += 1
+                        continue
+
+                    if img.id in protected_ids:
+                        result.items_skipped += 1
+                        continue
+
+                    if _is_protected_repo(img.tags):
+                        result.items_skipped += 1
+                        continue
+
+                    # Check age via "Created" field (ISO string)
+                    # attrs may trigger a Docker API call — guard against 404 race
+                    created_str = img.attrs.get("Created", "")
+                    if not _older_than(created_str, cutoff_ts):
+                        result.items_skipped += 1
+                        continue
+
+                    candidates.append(img)
+                except Exception:
+                    # Image disappeared between list() and attrs access — skip
                     result.items_skipped += 1
                     continue
-
-                if img.id in protected_ids:
-                    result.items_skipped += 1
-                    continue
-
-                if _is_protected_repo(img.tags):
-                    result.items_skipped += 1
-                    continue
-
-                # Check age via "Created" field (ISO string)
-                created_str = img.attrs.get("Created", "")
-                if not _older_than(created_str, cutoff_ts):
-                    result.items_skipped += 1
-                    continue
-
-                candidates.append(img)
 
             result.items_processed = len(candidates)
 

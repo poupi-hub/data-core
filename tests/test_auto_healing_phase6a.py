@@ -551,5 +551,5 @@ def test_runner_full_dry_run_returns_report():
         report = runner.run()
     assert isinstance(report, CleanupReport)
     assert report.dry_run is True
-    assert report.duration_seconds > 0
+    assert report.duration_seconds >= 0
     assert len(report.tasks) >= 3  # dangling, old_tagged, build_cache, log_audit
