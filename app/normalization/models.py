@@ -1,9 +1,17 @@
 import uuid
 from datetime import datetime
-
 from typing import Any
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, Index, Numeric, String, Text, UniqueConstraint  # noqa: F401
+from sqlalchemy import (  # noqa: F401
+    Boolean,
+    DateTime,
+    ForeignKey,
+    Index,
+    Numeric,
+    String,
+    Text,
+    UniqueConstraint,
+)
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column
 from sqlalchemy.sql import func
@@ -48,41 +56,6 @@ class NormalizedProduct(Base):
         Index("ix_normalized_products_store_name_collected", "store_name", "collected_at"),
         Index("ix_normalized_products_analytics_status_collected", "analytics_status", "collected_at"),
     )
-
-
-class NormalizedRealEstateListing(Base):
-    __tablename__ = "normalized_real_estate_listings"
-
-    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    raw_collection_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("raw_collections.id"), index=True)
-    source_id: Mapped[str | None] = mapped_column(String(255), nullable=True, index=True)
-    external_id: Mapped[str | None] = mapped_column(String(255), nullable=True, index=True)
-    url: Mapped[str | None] = mapped_column(Text, nullable=True)
-    title: Mapped[str | None] = mapped_column(Text, nullable=True)
-    property_type: Mapped[str | None] = mapped_column(String(80), nullable=True, index=True)
-    purpose: Mapped[str | None] = mapped_column(String(40), nullable=True, index=True)
-    price: Mapped[float | None] = mapped_column(Numeric(14, 2), nullable=True)
-    city: Mapped[str | None] = mapped_column(String(120), nullable=True, index=True)
-    neighborhood: Mapped[str | None] = mapped_column(String(160), nullable=True, index=True)
-    address: Mapped[str | None] = mapped_column(Text, nullable=True)
-    area_m2: Mapped[int | None] = mapped_column(nullable=True)
-    bedrooms: Mapped[int | None] = mapped_column(nullable=True)
-    bathrooms: Mapped[int | None] = mapped_column(nullable=True)
-    parking_spaces: Mapped[int | None] = mapped_column(nullable=True)
-    condo_fee: Mapped[float | None] = mapped_column(Numeric(14, 2), nullable=True)
-    iptu: Mapped[float | None] = mapped_column(Numeric(14, 2), nullable=True)
-    collected_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
-    analytics_status: Mapped[str] = mapped_column(String(40), default="pending", index=True)
-    normalizer_name: Mapped[str | None] = mapped_column(String(160), nullable=True, index=True)
-    normalizer_version: Mapped[str | None] = mapped_column(String(40), nullable=True, index=True)
-    normalized_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True, index=True)
-    normalization_metadata_json: Mapped[dict[str, Any]] = mapped_column(JSONB, default=dict)
-    source_raw_schema_name: Mapped[str | None] = mapped_column(String(160), nullable=True, index=True)
-    source_raw_schema_version: Mapped[str | None] = mapped_column(String(40), nullable=True, index=True)
-    source_collector_name: Mapped[str | None] = mapped_column(String(160), nullable=True, index=True)
-    source_collector_version: Mapped[str | None] = mapped_column(String(40), nullable=True, index=True)
-
-    __table_args__ = (Index("ix_norm_real_estate_city_neighborhood", "city", "neighborhood"),)
 
 
 class NormalizedCryptoSnapshot(Base):
@@ -173,39 +146,6 @@ class NormalizedSportsOdd(Base):
     )
 
 
-class NormalizedJobPosting(Base):
-    __tablename__ = "normalized_job_postings"
-
-    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    raw_collection_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("raw_collections.id"), index=True)
-    external_id: Mapped[str | None] = mapped_column(String(255), nullable=True, index=True)
-    source: Mapped[str] = mapped_column(String(80), index=True)
-    company_id: Mapped[str | None] = mapped_column(String(255), nullable=True, index=True)
-    company_name: Mapped[str | None] = mapped_column(String(255), nullable=True, index=True)
-    title: Mapped[str | None] = mapped_column(Text, nullable=True)
-    department: Mapped[str | None] = mapped_column(String(255), nullable=True, index=True)
-    city: Mapped[str | None] = mapped_column(String(120), nullable=True, index=True)
-    country: Mapped[str | None] = mapped_column(String(80), nullable=True, index=True)
-    remote: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
-    employment_type: Mapped[str | None] = mapped_column(String(80), nullable=True, index=True)
-    url: Mapped[str | None] = mapped_column(Text, nullable=True)
-    published_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True, index=True)
-    tags: Mapped[list] = mapped_column(JSONB, default=list)
-    collected_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
-    analytics_status: Mapped[str] = mapped_column(String(40), default="pending", index=True)
-    normalizer_name: Mapped[str | None] = mapped_column(String(160), nullable=True, index=True)
-    normalizer_version: Mapped[str | None] = mapped_column(String(40), nullable=True, index=True)
-    normalized_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True, index=True)
-    normalization_metadata_json: Mapped[dict[str, Any]] = mapped_column(JSONB, default=dict)
-    source_raw_schema_name: Mapped[str | None] = mapped_column(String(160), nullable=True, index=True)
-    source_raw_schema_version: Mapped[str | None] = mapped_column(String(40), nullable=True, index=True)
-    source_collector_name: Mapped[str | None] = mapped_column(String(160), nullable=True, index=True)
-    source_collector_version: Mapped[str | None] = mapped_column(String(40), nullable=True, index=True)
-
-    __table_args__ = (
-        Index("ix_norm_job_source_company_collected", "source", "company_id", "collected_at"),
-        Index("ix_norm_job_title_country_collected", "title", "country", "collected_at"),
-    )
 
 
 class NormalizerVersion(Base):

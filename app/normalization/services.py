@@ -10,10 +10,8 @@ from sqlalchemy.orm import Session
 from app.documentation.lineage import LineageService
 from app.normalization.models import (
     NormalizedCryptoSnapshot,
-    NormalizedJobPosting,
     NormalizedMarketCandle,
     NormalizedProduct,
-    NormalizedRealEstateListing,
     NormalizedSportsOdd,
     NormalizerVersion,
 )
@@ -40,11 +38,9 @@ def _all_normalized_models() -> tuple[type, ...]:
     if _ALL_NORMALIZED_MODELS is None:
         _ALL_NORMALIZED_MODELS = (
             NormalizedProduct,
-            NormalizedRealEstateListing,
             NormalizedCryptoSnapshot,
             NormalizedMarketCandle,
             NormalizedSportsOdd,
-            NormalizedJobPosting,
         )
     return _ALL_NORMALIZED_MODELS
 

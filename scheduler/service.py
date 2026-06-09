@@ -26,16 +26,12 @@ from scheduler.job_wrappers import (
     run_normalize_reliable,
     run_operational_watchdog_with_retry,
     run_poupi_baby_coverage_intelligence_reliable,
-    run_real_estate_daily_reliable,
-    run_real_estate_enrichment_with_retry,
     run_signal_outcomes_reliable,
     run_source_health_with_retry,
 )
 from scheduler.jobs import (
     cleanup_stale_runs_job,
     collect_raw_job,
-    run_jobs_collectors_job,  # noqa: F401 — disponível para trigger manual via API
-    run_real_estate_http_collectors_job,  # noqa: F401 — disponível para trigger manual via API
     scheduler_heartbeat_job,
 )
 
@@ -262,26 +258,6 @@ def create_scheduler(
             coalesce=True,
         )
 
-        # Imóveis: coleta diária via Playwright (ApolarCollector)
-        # Requer Playwright instalado no container do scheduler.
-        _add_job_preserving_persisted(
-            scheduler,
-            run_real_estate_daily_reliable,
-            "cron",
-            hour=3,
-            minute=30,
-            id="real_estate:daily",
-            replace_existing=True,
-            max_instances=1,
-            coalesce=True,
-        )
-
-        # Imóveis HTTP (Zap, VivaReal, OLX, ImovelWeb) e Jobs (Gupy, Greenhouse, Lever)
-        # são agendados via scheduler_collectors_enabled — cada collector auto-registra
-        # seu próprio job via registry.all() com seu default_interval_minutes.
-        # run_real_estate_http_collectors_job e run_jobs_collectors_job ficam disponíveis
-        # para triggers manuais via API apenas.
-
         # Sports odds: DESATIVADO — NbaOddsCollector usa base_url="https://example.com"
         # (sem endpoints reais configurados). Reativar quando uma fonte real for integrada.
         # Para reativar:
@@ -375,19 +351,6 @@ def create_scheduler(
             max_instances=1,
             coalesce=True,
         )
-
-    # ── Real Estate enrichment (QUALITY PASS) ────────────────────────────────
-    # run_real_estate_enrichment_job : a cada 2h — extrai structured_fields
-    _add_job_preserving_persisted(
-        scheduler,
-        run_real_estate_enrichment_with_retry,
-        "interval",
-        hours=2,
-        id="real_estate:field_enrichment",
-        replace_existing=True,
-        max_instances=1,
-        coalesce=True,
-    )
 
     # ── NBA Quant — daily incremental update at 09:00 BRT (12:00 UTC) ────────
     if settings.scheduler_domain_jobs_enabled:

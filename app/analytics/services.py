@@ -8,7 +8,6 @@ from sqlalchemy.orm import Session
 from app.analytics.models import (
     CryptoAnalytics,
     ProductPriceAnalytics,
-    RealEstateAnalytics,
     SportsOddsAnalytics,
     TradingAnalytics,
 )
@@ -109,21 +108,6 @@ class BaseAnalyticsProcessor(ABC):
                     analytics_processor_name=processor_name,
                     analytics_processor_version=processor_version,
                     analytics_record_type="product_price_analytics",
-                    analytics_record_id=row.id,
-                )
-        elif self.module == "real_estate":
-            rows = self.db.query(RealEstateAnalytics).filter(
-                RealEstateAnalytics.listing_id == normalized.id,
-            ).all()
-            for row in rows:
-                row.source_normalizer_name = normalizer_name
-                row.source_normalizer_version = normalizer_version
-                lineage.attach_analytics(
-                    normalized_record_type="normalized_real_estate_listings",
-                    normalized_record_id=normalized.id,
-                    analytics_processor_name=processor_name,
-                    analytics_processor_version=processor_version,
-                    analytics_record_type="real_estate_analytics",
                     analytics_record_id=row.id,
                 )
         elif self.module == "crypto":

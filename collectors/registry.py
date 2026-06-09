@@ -2,14 +2,6 @@ from collectors.base import BaseCollector
 from collectors.crypto.crypto_coin_ohlcv import CryptoCoinOHLCVCollector
 from collectors.crypto.generic_price import GenericCryptoPriceCollector
 from collectors.ecommerce.generic_product import GenericProductCollector
-from collectors.jobs.greenhouse_collector import GreenhouseCollector
-from collectors.jobs.gupy_collector import GupyCollector
-from collectors.jobs.lever_collector import LeverCollector
-from collectors.jobs.recruitee_collector import RecruiteeCollector
-from collectors.jobs.smartrecruiters_collector import SmartRecruitersCollector
-from collectors.jobs.teamtailor_collector import TeamtailorCollector
-from collectors.real_estate.direct_agencies_collector import DirectAgenciesCollector
-from collectors.real_estate.generic_listing import GenericRealEstateCollector
 from collectors.sports_betting.generic_odds import GenericSportsOddsCollector
 
 CollectorType = type[BaseCollector]
@@ -37,19 +29,10 @@ class CollectorRegistry:
 
 registry = CollectorRegistry()
 
-# ── Existing verticals ────────────────────────────────────────────────────────
-registry.register(GenericRealEstateCollector)   # mock/demo — schedulable=False
+# ── Active verticals ──────────────────────────────────────────────────────────
 registry.register(GenericProductCollector)
 registry.register(GenericCryptoPriceCollector)
 registry.register(CryptoCoinOHLCVCollector)
 registry.register(GenericSportsOddsCollector)
-
-registry.register(DirectAgenciesCollector)
-# Jobs — ativos (auto-scheduler 6h interval cada)
-registry.register(GupyCollector)
-registry.register(GreenhouseCollector)
-registry.register(LeverCollector)
-registry.register(SmartRecruitersCollector)
-registry.register(RecruiteeCollector)
-registry.register(TeamtailorCollector)
-# workable: REMOVIDO 2026-06-01 — 0 output em validação; slugs BR inexistentes na plataforma
+# Jobs (SUNSET 2026-06-09): collectors/jobs/ removed — EXTERNAL_DEGRADED (Gupy frozen 2025-08)
+# Real Estate (SUNSET 2026-06-09): collectors/real_estate/ removed

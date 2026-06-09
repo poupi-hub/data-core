@@ -8,7 +8,6 @@ from sqlalchemy.orm import Session
 from app.analytics.models import (
     CryptoAnalytics,
     ProductPriceAnalytics,
-    RealEstateAnalytics,
     SportsOddsAnalytics,
     TradingAnalytics,
 )
@@ -28,7 +27,6 @@ from app.normalization.models import (
     NormalizedCryptoSnapshot,
     NormalizedMarketCandle,
     NormalizedProduct,
-    NormalizedRealEstateListing,
     NormalizedSportsOdd,
 )
 from app.raw.models import RawCollection
@@ -586,7 +584,6 @@ class DocumentationService:
         normalized_models = self._normalized_models()
         analytics_models = {
             "ecommerce": (ProductPriceAnalytics, "product_price_analytics", "product_id"),
-            "real_estate": (RealEstateAnalytics, "real_estate_analytics", "listing_id"),
             "crypto": (CryptoAnalytics, "crypto_analytics", None),
             "trading": (TradingAnalytics, "trading_analytics", None),
             "sports_odds": (SportsOddsAnalytics, "sports_odds_analytics", None),
@@ -654,7 +651,6 @@ class DocumentationService:
     def _analytics_processor_name(module: str) -> str:
         return {
             "ecommerce": "ProductPriceAnalyticsProcessor",
-            "real_estate": "RealEstateAnalyticsProcessor",
             "crypto": "CryptoAnalyticsProcessor",
             "trading": "TradingAnalyticsProcessor",
             "sports_odds": "SportsOddsAnalyticsProcessor",
@@ -664,7 +660,6 @@ class DocumentationService:
     def _normalized_models() -> dict[str, type]:
         return {
             "ecommerce": NormalizedProduct,
-            "real_estate": NormalizedRealEstateListing,
             "crypto": NormalizedCryptoSnapshot,
             "trading": NormalizedMarketCandle,
             "sports_odds": NormalizedSportsOdd,
@@ -674,7 +669,6 @@ class DocumentationService:
     def _analytics_models_for_counts() -> dict[str, type]:
         return {
             "ecommerce": ProductPriceAnalytics,
-            "real_estate": RealEstateAnalytics,
             "crypto": CryptoAnalytics,
             "trading": TradingAnalytics,
             "sports_odds": SportsOddsAnalytics,
@@ -684,7 +678,6 @@ class DocumentationService:
     def _quality_model_and_fields(module: str) -> tuple[type | None, list[str]]:
         return {
             "ecommerce": (NormalizedProduct, ["title", "price", "availability", "store_name"]),
-            "real_estate": (NormalizedRealEstateListing, ["title", "price", "city", "neighborhood", "area_m2"]),
             "crypto": (NormalizedCryptoSnapshot, ["symbol", "price", "volume"]),
             "trading": (NormalizedMarketCandle, ["symbol", "timeframe", "open", "high", "low", "close", "volume"]),
             "sports_odds": (NormalizedSportsOdd, ["sportsbook", "sport", "league", "event_external_id", "market_type", "selection", "odd"]),

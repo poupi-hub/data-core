@@ -158,86 +158,31 @@ def poupi_baby_coverage_intelligence_job() -> None:
 
 
 # ---------------------------------------------------------------------------
-# SOURCE PORTFOLIO — atualizado 2026-06-01
+# SOURCE PORTFOLIO — atualizado 2026-06-09
 #
-# KEEP (auto-scheduler 6h):
-#   Jobs:        greenhouse, gupy(suspended), lever, smartrecruiters(2 seeds), recruitee, teamtailor
-#   Real Estate: direct_agencies (apolar, razao, gonzaga, pacheco, maringa, cadena, prates, cibraco, noruega)
+# KEEP (auto-scheduler):
 #   Crypto:      crypto_coin_ohlcv
 #   Ecommerce:   paguemenos (url_scraper)
 #
-# SUSPEND (código presente, schedulable=True mas fora do auto-scheduler ativo):
-#   jobs.gupy    — volume colapsou; manter para monitoramento e reativação futura
-#   jobs.workday — seed IDs errados; reativar quando slugs forem corrigidos
-#   drogaraia, drogasil — HTTP 403 desde 2026-05
-#
-# POLÍTICA DE REMOÇÃO TRIMESTRAL (B3 — revisão a cada 90 dias):
-#   1. Rodar probe HTTP em todas as fontes com 0 records nos últimos 30 dias.
-#   2. Fontes com DNS failure ou HTTP 4xx por 2+ ciclos consecutivos → DEAD.
-#   3. Fontes DEAD: remover do collector, manter tombstone comentado por 1 versão.
-#   4. Próxima revisão: 2026-09-01
-#
-# DEAD — NÃO RETENTAR (estruturalmente bloqueados):
-#   jobs.ashby      — SPA GraphQL; endpoint responde mas retorna HTML de bot-check
-#   jobs.bamboohr   — Cloudflare bot protection; todas as requisições bloqueadas
-#   real_estate.j8  — SPA sem rota de listagem; raw_html é binário, sem imóveis
-#   real_estate.olx_imoveis, zap_imoveis, viva_real, imovelweb — placeholders, 0 records
-#
-# REMOVED (código deletado, sem tombstone necessário):
-#   crypto.generic_price, ecommerce.generic_product, real_estate.generic_listing,
-#   sports_betting.generic_odds — nunca rodaram, código era dead placeholder
+# SUNSET 2026-06-09:
+#   Jobs (all): Greenhouse, Lever, SmartRecruiters, Recruitee, TeamTailor, Gupy
+#     → collectors/jobs/ removed; portal.api.gupy.io frozen at 2025-08-25
+#   Real Estate (all): direct_agencies, apolar, razao, etc.
+#     → collectors/real_estate/ removed; app/modules/real_estate/ removed
 # ---------------------------------------------------------------------------
 MODULE_COLLECTORS = {
     "ecommerce": [],          # generic_product REMOVED — never ran, placeholder
-    "real_estate": [
-        # REMOVED: zap_imoveis, viva_real, olx_imoveis, imovelweb — 0 records, placeholders
-        "real_estate.direct_agencies",
-    ],
     "sports_odds": [],        # generic_odds REMOVED — never ran, placeholder
     "crypto": [
         # REMOVED: generic_price — never ran, placeholder
         "crypto.crypto_coin_ohlcv",
     ],
     "trading": [],
-    "jobs": [
-        # SUSPENDED: ashby (BLOCKED), bamboohr (BLOCKED)
-        # SUSPENDED: workday (wrong seed IDs — re-add when fixed)
-        "jobs.gupy",          # SUSPENDED — volume collapsed; keeping for monitoring
-        "jobs.greenhouse",
-        "jobs.lever",
-        "jobs.smartrecruiters",
-        "jobs.recruitee",
-        "jobs.teamtailor",
-        # jobs.workable: REMOVIDO 2026-06-01 — 0 output em validação
-    ],
 }
 
 SOURCE_COLLECTORS = {
     # Crypto — KEEP
     "crypto_coin_exchange": "crypto.crypto_coin_ohlcv",
-    # Jobs — KEEP
-    "greenhouse": "jobs.greenhouse",
-    "lever": "jobs.lever",
-    "smartrecruiters": "jobs.smartrecruiters",
-    "recruitee": "jobs.recruitee",
-    "teamtailor": "jobs.teamtailor",
-    # "workable": REMOVIDO 2026-06-01 — validação: 0 output
-    # Jobs — SUSPENDED (keep mapping for manual trigger, not scheduled)
-    "gupy": "jobs.gupy",
-    "workday": "jobs.workday",
-    # Real Estate — KEEP
-    "direct_agencies": "real_estate.direct_agencies",
-    # REMOVED (retained as comments for audit trail):
-    # "ashby": "jobs.ashby",            # BLOCKED — SPA GraphQL, no public API
-    # "bamboohr": "jobs.bamboohr",      # BLOCKED — Cloudflare bot protection
-    # "zap_imoveis": "real_estate.zap_imoveis",     # REMOVED — placeholder, 0 records
-    # "viva_real": "real_estate.viva_real",          # REMOVED — placeholder, 0 records
-    # "olx_imoveis": "real_estate.olx_imoveis",     # REMOVED — placeholder, 0 records
-    # "imovelweb": "real_estate.imovelweb",         # REMOVED — placeholder, 0 records
-    # "generic_marketplace": "ecommerce.generic_product",  # REMOVED — never ran
-    # "generic_real_estate": "real_estate.generic_listing", # REMOVED — never ran
-    # "generic_bookmaker": "sports_betting.generic_odds",  # REMOVED — never ran
-    # "generic_exchange": "crypto.generic_price",          # REMOVED — never ran
 }
 
 DEFAULT_COLLECTION_TARGETS = [
@@ -539,10 +484,6 @@ def run_ecommerce_collectors_job(source: str | None = None) -> None:
     run_module_collectors_job("ecommerce", source=source)
 
 
-def run_real_estate_collectors_job(source: str | None = None) -> None:
-    run_module_collectors_job("real_estate", source=source)
-
-
 def run_sports_odds_collectors_job(source: str | None = None) -> None:
     run_module_collectors_job("sports_odds", source=source)
 
@@ -553,66 +494,6 @@ def run_crypto_collectors_job(source: str | None = None) -> None:
 
 def run_trading_collectors_job(source: str | None = None) -> None:
     run_module_collectors_job("trading", source=source)
-
-
-def run_jobs_collectors_job(source: str | None = None) -> None:
-    """Scheduled entry-point para coleta de vagas de emprego.
-
-    Executa os collectors: jobs.gupy, jobs.greenhouse, jobs.lever.
-    Salva em raw_collections (module=jobs). Raw storage only — sem normalização.
-    """
-    run_id = str(uuid.uuid4())
-    started_at = time.monotonic()
-    job_source = source or "jobs"
-    logger.info(
-        "Job run started",
-        extra={"run_id": run_id, "job": "run_jobs_collectors_job", "domain": "jobs", "source": job_source},
-    )
-    error: Exception | None = None
-    try:
-        run_module_collectors_job("jobs", source=source)
-    except Exception as exc:
-        error = exc
-        raise
-    finally:
-        _log_job_run(
-            job_name="run_jobs_collectors_job",
-            run_id=run_id,
-            domain="jobs",
-            source=job_source,
-            started_at=started_at,
-            error=error,
-        )
-
-
-def run_real_estate_http_collectors_job(source: str | None = None) -> None:
-    """Scheduled entry-point para coleta de imóveis via HTTP (Zap, VivaReal, OLX, ImovelWeb).
-
-    Complementa o run_real_estate_daily_collection (Playwright/Apolar).
-    Salva em raw_collections (module=real_estate). Raw storage only.
-    """
-    run_id = str(uuid.uuid4())
-    started_at = time.monotonic()
-    job_source = source or "real_estate.http"
-    logger.info(
-        "Job run started",
-        extra={"run_id": run_id, "job": "run_real_estate_http_collectors_job", "domain": "real_estate", "source": job_source},
-    )
-    error: Exception | None = None
-    try:
-        run_module_collectors_job("real_estate", source=source)
-    except Exception as exc:
-        error = exc
-        raise
-    finally:
-        _log_job_run(
-            job_name="run_real_estate_http_collectors_job",
-            run_id=run_id,
-            domain="real_estate",
-            source=job_source,
-            started_at=started_at,
-            error=error,
-        )
 
 
 def ensure_default_collection_targets() -> int:
@@ -1574,10 +1455,7 @@ def compute_source_health_job() -> None:
       - health_score (0-100), status (HEALTHY/WARNING/DEGRADED/CRITICAL/BLOCKED)
 
     Apos persistir, atualiza metricas Prometheus:
-      source_health_score, source_health_status,
-      jobs_health_score, jobs_success_rate, jobs_failed_runs_total,
-      real_estate_health_score, real_estate_success_rate,
-      real_estate_failed_runs_total.
+      source_health_score, source_health_status.
     """
     import api.metrics as metrics
     from app.observability.services import compute_all_source_health
@@ -1605,87 +1483,14 @@ def compute_source_health_job() -> None:
                 cat = rec.category
                 score = rec.health_score or 0.0
                 status = rec.status or "UNKNOWN"
-                s_rate = rec.success_rate or 0.0
-                f_runs = float(rec.failed_runs or 0)
 
                 # Cross-domain metrics
                 metrics.source_health_score.labels(collector_name=cname, category=cat).set(score)
-                for st, val in _STATUS_NUMERIC.items():
+                for st, _val in _STATUS_NUMERIC.items():
                     metrics.source_health_status.labels(
                         collector_name=cname, category=cat, status=st,
                     ).set(1.0 if status == st else 0.0)
 
-                # Domain-specific metrics
-                if cat == "jobs":
-                    metrics.jobs_health_score.labels(collector_name=cname).set(score)
-                    metrics.jobs_success_rate.labels(collector_name=cname).set(s_rate)
-                    metrics.jobs_failed_runs_total.labels(collector_name=cname).set(f_runs)
-                elif cat == "real_estate":
-                    metrics.real_estate_health_score.labels(collector_name=cname).set(score)
-                    metrics.real_estate_success_rate.labels(collector_name=cname).set(s_rate)
-                    metrics.real_estate_failed_runs_total.labels(collector_name=cname).set(f_runs)
-
-            # FASE 6 — field presence & drift detection for real_estate
-            try:
-                from sqlalchemy import text as sqla_text
-
-                from app.observability.models import SourceHealth as SH
-                from app.real_estate.drift import (
-                    compute_dataset_drift_score,
-                    compute_field_presence,
-                )
-
-                # Load baselines from source_health.details_json per agency
-                baselines: dict[str, dict[str, float]] = {}
-                sh_rows = db.query(SH).filter(SH.category == "real_estate").all()
-                for sh in sh_rows:
-                    dj = sh.details_json or {}
-                    fp_baseline = dj.get("field_presence_baseline")
-                    if isinstance(fp_baseline, dict):
-                        baselines[sh.collector_name] = fp_baseline
-
-                drift_reports = compute_field_presence(db, baseline=baselines if baselines else None)
-                drift_score_overall = compute_dataset_drift_score(drift_reports)
-
-                for agency_id, report in drift_reports.items():
-                    # Prometheus: per-field presence rate
-                    for f, rate in report.field_presence.items():
-                        metrics.real_estate_field_presence_rate.labels(
-                            agency_id=agency_id, field=f
-                        ).set(rate)
-                    # Prometheus: drift score
-                    metrics.real_estate_schema_drift_score.labels(
-                        agency_id=agency_id
-                    ).set(report.schema_drift_score)
-
-                    # Persist current presence as new baseline into source_health.details_json
-                    sh_row = next(
-                        (s for s in sh_rows if s.collector_name == agency_id),
-                        None
-                    )
-                    if sh_row is not None:
-                        dj = dict(sh_row.details_json or {})
-                        dj["field_presence_baseline"] = report.field_presence
-                        dj["field_presence_latest"] = report.field_presence
-                        dj["schema_drift_score"] = report.schema_drift_score
-                        dj["drift_fields"] = report.drift_fields
-                        db.execute(
-                            sqla_text(
-                                "UPDATE source_health SET details_json = CAST(:dj AS jsonb) "
-                                "WHERE id = CAST(:id AS uuid)"
-                            ),
-                            {"dj": __import__("json").dumps(dj, ensure_ascii=False), "id": str(sh_row.id)},
-                        )
-                db.commit()
-                logger.info(
-                    "real_estate.drift: field presence updated",
-                    extra={"agencies": len(drift_reports), "overall_drift_score": drift_score_overall},
-                )
-            except Exception as drift_exc:
-                logger.warning(
-                    "compute_source_health_job: drift detection failed",
-                    extra={"error": str(drift_exc)},
-                )
         finally:
             db.close()
     except Exception as exc:
@@ -1708,19 +1513,16 @@ def compute_source_health_job() -> None:
 
 
 def compute_dataset_integrity_job() -> None:
-    """FASE 4 — Calcula dataset_integrity_scores para jobs e real_estate.
+    """FASE 4 — Calcula dataset_integrity_scores para todos os datasets ativos.
 
     Frequencia recomendada: a cada 6h.
-    Para cada dataset (jobs, real_estate) e por fonte:
+    Para cada dataset e por fonte:
       - freshness_score, completeness_score, consistency_score
       - duplication_score, coverage_score, dataset_health_score
 
     Apos persistir, atualiza metricas Prometheus:
       dataset_integrity_score [dataset, source, dimension],
-      dataset_records_total,
-      jobs_freshness_score, jobs_duplicate_rate, jobs_records_total,
-      real_estate_freshness_score, real_estate_duplicate_rate,
-      real_estate_records_total.
+      dataset_records_total.
     """
     import api.metrics as metrics
     from app.observability.services import compute_all_dataset_integrity
@@ -1760,51 +1562,6 @@ def compute_dataset_integrity_job() -> None:
 
                 metrics.etl_dataset_records_total.labels(dataset=ds, source=src).set(total)
 
-                fresh = rec.freshness_score or 0.0
-                dup_score = rec.duplication_score or 100.0
-                # duplication_score=100 means no duplication; invert to get rate
-                dup_rate = max(0.0, (100.0 - dup_score) / 100.0)
-
-                if ds == "jobs":
-                    metrics.jobs_records_total.labels(source=src).set(total)
-                    metrics.jobs_freshness_score.labels(source=src).set(fresh)
-                    metrics.jobs_duplicate_rate.labels(source=src).set(dup_rate)
-                elif ds == "real_estate":
-                    metrics.real_estate_records_total.labels(source=src).set(total)
-                    metrics.real_estate_freshness_score.labels(source=src).set(fresh)
-                    metrics.real_estate_duplicate_rate.labels(source=src).set(dup_rate)
-            # ── M3: HHI por dataset (últimas 24h de raw_collections) ─────────
-            try:
-                from datetime import timedelta
-
-                from sqlalchemy import func as sqla_func
-
-                from app.raw.models import RawCollection as RC
-
-                _now = datetime.now(timezone.utc)
-                _since = _now - timedelta(hours=24)
-                for _dataset in ("jobs", "real_estate"):
-                    _rows = (
-                        db.query(RC.source_name, sqla_func.count().label("cnt"))
-                        .filter(RC.module == _dataset, RC.collected_at >= _since)
-                        .group_by(RC.source_name)
-                        .all()
-                    )
-                    _total = sum(r.cnt for r in _rows)
-                    if _total > 0:
-                        _hhi = sum((r.cnt / _total) ** 2 for r in _rows) * 10_000
-                        metrics.dataset_hhi_score.labels(dataset=_dataset).set(_hhi)
-                        for _r in _rows:
-                            metrics.dataset_source_share.labels(
-                                dataset=_dataset, source=_r.source_name
-                            ).set(_r.cnt / _total)
-                        logger.info(
-                            "Dataset HHI computed",
-                            extra={"dataset": _dataset, "hhi": round(_hhi, 1), "sources": len(_rows)},
-                        )
-            except Exception as hhi_exc:
-                logger.warning("HHI computation failed (non-fatal)", extra={"error": str(hhi_exc)})
-
             # ── B2: Dataset window — janela real de histórico ─────────────────
             try:
                 import calendar
@@ -1813,7 +1570,7 @@ def compute_dataset_integrity_job() -> None:
 
                 from app.raw.models import RawCollection as RC_w
 
-                for _dataset in ("jobs", "real_estate", "crypto", "ecommerce"):
+                for _dataset in ("crypto", "ecommerce"):
                     _range = db.query(
                         sqla_func_w.min(RC_w.collected_at).label("first"),
                         sqla_func_w.max(RC_w.collected_at).label("last"),
@@ -1840,48 +1597,6 @@ def compute_dataset_integrity_job() -> None:
             run_id=run_id,
             domain="platform",
             source="observability",
-            started_at=started_at,
-            collected_count=count,
-            error=error,
-        )
-
-
-def run_real_estate_enrichment_job() -> None:
-    """REAL ESTATE QUALITY — Extrai structured_fields para todos os registros direct_agencies.
-
-    Frequencia recomendada: a cada 2h (logo apos coletas).
-    Idempotente: re-execucao sobrescreve structured_fields sem tocar raw_data.
-    """
-    from app.real_estate.enrichment import run_field_enrichment
-
-    run_id = str(uuid.uuid4())
-    started_at = time.monotonic()
-    logger.info(
-        "Job run started",
-        extra={"run_id": run_id, "job": "run_real_estate_enrichment_job", "domain": "real_estate", "source": "direct_agencies"},
-    )
-    count = 0
-    error: Exception | None = None
-    try:
-        db = SessionLocal()
-        try:
-            result = run_field_enrichment(db)
-            count = result.enriched
-        finally:
-            db.close()
-    except Exception as exc:
-        error = exc
-        logger.error(
-            "run_real_estate_enrichment_job failed",
-            extra={"run_id": run_id, "error": str(exc)},
-        )
-        raise
-    finally:
-        _log_job_run(
-            job_name="run_real_estate_enrichment_job",
-            run_id=run_id,
-            domain="real_estate",
-            source="direct_agencies",
             started_at=started_at,
             collected_count=count,
             error=error,

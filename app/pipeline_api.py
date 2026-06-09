@@ -11,27 +11,26 @@ from sqlalchemy import desc, func
 from sqlalchemy.orm import Session
 
 from api.deps import db_session
-from cache import cache_get, cache_set
+from api.rate_limit import limiter
 from app.analytics.models import (
     CryptoAnalytics,
     ProductPriceAnalytics,
-    RealEstateAnalytics,
     SportsOddsAnalytics,
     TradingAnalytics,
 )
+from app.data_quality.models import DataQualityRun
+from app.documentation.models import DataLineage, DataSla
+from app.documentation.services import DocumentationService
 from app.normalization.models import (
     NormalizedCryptoSnapshot,
     NormalizedMarketCandle,
     NormalizedProduct,
-    NormalizedRealEstateListing,
     NormalizedSportsOdd,
     NormalizerVersion,
 )
 from app.raw.models import CollectorVersion, RawCollection
 from app.raw.repository import RawRepository
-from app.data_quality.models import DataQualityRun
-from app.documentation.models import DataLineage, DataSla
-from app.documentation.services import DocumentationService
+from cache import cache_get, cache_set
 from database.models import CollectionRun, CollectionTarget, CollectorError, RunStatus
 from scheduler.jobs import (
     MODULE_COLLECTORS,
@@ -42,13 +41,10 @@ from scheduler.jobs import (
     run_collection_targets_job,
 )
 
-from api.rate_limit import limiter
-
 router = APIRouter(prefix="/api/v1", tags=["pipeline"])
 
 NORMALIZED_TABLES = {
     "ecommerce": NormalizedProduct,
-    "real_estate": NormalizedRealEstateListing,
     "crypto": NormalizedCryptoSnapshot,
     "trading": NormalizedMarketCandle,
     "sports_odds": NormalizedSportsOdd,
@@ -56,7 +52,6 @@ NORMALIZED_TABLES = {
 
 ANALYTICS_TABLES = {
     "ecommerce": ProductPriceAnalytics,
-    "real_estate": RealEstateAnalytics,
     "crypto": CryptoAnalytics,
     "trading": TradingAnalytics,
     "sports_odds": SportsOddsAnalytics,
@@ -616,7 +611,17 @@ def _collection_target_status_payload(db: Session, target: CollectionTarget, *, 
     }
     readiness_checks = {
         "active": target.active,
-        "latest_run_success": latest_run is not None and latest_run.status == RunStatus.success,
+        # Target-based collectors persist per-URL RAW evidence but do not create
+        # one CollectionRun per target. Accept a clean, successfully processed
+        # latest RAW as equivalent execution evidence for that target.
+        "latest_run_success": (
+            latest_run is not None and latest_run.status == RunStatus.success
+        )
+        or (
+            latest_raw is not None
+            and latest_raw.error_message is None
+            and latest_raw.processing_status == "normalized"
+        ),
         "latest_raw_exists": latest_raw is not None,
         "latest_raw_normalized": latest_raw is not None and latest_raw.processing_status == "normalized",
         "normalized_exists": len(normalized) > 0,
@@ -792,8 +797,8 @@ def run_pipeline_once(
 @router.post("/operations/sources/{module}/{source_name}/circuit/open")
 def open_circuit_breaker(module: str, source_name: str) -> dict[str, Any]:
     """Manually open the circuit for a source (deactivate all its targets)."""
-    from scheduler.circuit_breaker import CIRCUIT_OPEN_ERROR_TYPE
     from database.session import SessionLocal as _SL
+    from scheduler.circuit_breaker import CIRCUIT_OPEN_ERROR_TYPE
 
     db = _SL()
     try:
@@ -823,8 +828,8 @@ def open_circuit_breaker(module: str, source_name: str) -> dict[str, Any]:
 @router.post("/operations/sources/{module}/{source_name}/circuit/reopen")
 def reopen_circuit_breaker(module: str, source_name: str) -> dict[str, Any]:
     """Reopen the circuit for a source (reactivate targets, resolve circuit errors)."""
-    from scheduler.circuit_breaker import reopen_source_circuit
     from database.session import SessionLocal as _SL
+    from scheduler.circuit_breaker import reopen_source_circuit
 
     db = _SL()
     try:
@@ -1224,7 +1229,7 @@ def _build_alerts_payload(
             continue
         if not hasattr(model, "analytics_status"):
             continue
-        timestamp_column = getattr(model, "normalized_at") if hasattr(model, "normalized_at") else getattr(model, "collected_at")
+        timestamp_column = model.normalized_at if hasattr(model, "normalized_at") else model.collected_at
         query = db.query(model).filter(model.analytics_status == "pending", timestamp_column < pending_analytics_cutoff)
         if source_name:
             if model is NormalizedProduct:

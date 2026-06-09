@@ -24,22 +24,6 @@ class ProductPriceAnalytics(Base):
     source_normalizer_version: Mapped[str | None] = mapped_column(String(40), nullable=True, index=True)
 
 
-class RealEstateAnalytics(Base):
-    __tablename__ = "real_estate_analytics"
-
-    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    listing_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("normalized_real_estate_listings.id"), index=True
-    )
-    price_per_m2: Mapped[float | None] = mapped_column(Numeric(14, 2), nullable=True)
-    neighborhood_avg_price_m2: Mapped[float | None] = mapped_column(Numeric(14, 2), nullable=True)
-    discount_vs_neighborhood: Mapped[float | None] = mapped_column(Numeric(10, 4), nullable=True)
-    opportunity_score: Mapped[float | None] = mapped_column(Numeric(10, 4), nullable=True)
-    calculated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), index=True)
-    source_normalizer_name: Mapped[str | None] = mapped_column(String(160), nullable=True, index=True)
-    source_normalizer_version: Mapped[str | None] = mapped_column(String(40), nullable=True, index=True)
-
-
 class CryptoAnalytics(Base):
     __tablename__ = "crypto_analytics"
 

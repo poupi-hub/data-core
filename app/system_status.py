@@ -7,13 +7,16 @@ from fastapi import APIRouter, Depends
 from sqlalchemy import desc, func, text
 from sqlalchemy.orm import Session
 
-from app.analytics.models import ProductPriceAnalytics, RealEstateAnalytics, TradingAnalytics
-from app.normalization.models import NormalizedMarketCandle, NormalizedProduct, NormalizedRealEstateListing
+from app.analytics.models import ProductPriceAnalytics, TradingAnalytics
+from app.normalization.models import (
+    NormalizedMarketCandle,
+    NormalizedProduct,
+)
+from app.pipeline.liveness import PipelineLivenessService
 from app.pipeline.models import PipelineRun
 from app.raw.models import RawCollection
-from app.pipeline.liveness import PipelineLivenessService
 from app.runtime.heartbeat import read_worker_heartbeat
-from app.runtime.scheduler_heartbeat import read_scheduler_heartbeat, heartbeat_age_seconds
+from app.runtime.scheduler_heartbeat import heartbeat_age_seconds, read_scheduler_heartbeat
 from app.runtime.scheduler_watchdog import DataCoreSchedulerWatchdog
 from core.config import settings
 from database.models import CollectionRun, CollectionTarget, CollectorError, RunStatus
@@ -135,8 +138,6 @@ def _pipeline_lag(db: Session, now: datetime) -> dict[str, Any]:
     latest_crypto_analytics = db.query(func.max(TradingAnalytics.calculated_at)).scalar()
     latest_product_normalized = db.query(func.max(NormalizedProduct.normalized_at)).scalar()
     latest_product_analytics = db.query(func.max(ProductPriceAnalytics.calculated_at)).scalar()
-    latest_real_estate_normalized = db.query(func.max(NormalizedRealEstateListing.normalized_at)).scalar()
-    latest_real_estate_analytics = db.query(func.max(RealEstateAnalytics.calculated_at)).scalar()
 
     return {
         "raw_pending_total": raw_pending_total,
@@ -147,14 +148,12 @@ def _pipeline_lag(db: Session, now: datetime) -> dict[str, Any]:
             "crypto_latest_normalized_at": latest_crypto_normalized,
             "crypto_lag_seconds": _lag_between(latest_crypto_raw, latest_crypto_normalized),
             "product_latest_normalized_at": latest_product_normalized,
-            "real_estate_latest_normalized_at": latest_real_estate_normalized,
             "last_success_at": _latest_pipeline_success(db, "normalization"),
         },
         "analytics": {
             "crypto_latest_analytics_at": latest_crypto_analytics,
             "crypto_lag_seconds": _lag_between(latest_crypto_raw, latest_crypto_analytics),
             "product_latest_analytics_at": latest_product_analytics,
-            "real_estate_latest_analytics_at": latest_real_estate_analytics,
             "last_success_at": _latest_pipeline_success(db, "analytics"),
         },
         "ages": {
@@ -455,7 +454,6 @@ def build_system_status(db: Session) -> dict[str, Any]:
         "ecommerce": providers,
         "telegram_pipeline": {
             "status": "ADVISORY_ONLY",
-            "enabled": settings.telegram_enabled,
             "live_publishing_unchanged": True,
         },
         "prometheus_metric_health": {

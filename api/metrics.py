@@ -15,7 +15,7 @@ Metric groups
 
 from __future__ import annotations
 
-from prometheus_client import Counter, Gauge, Histogram, Summary
+from prometheus_client import Counter, Gauge, Histogram
 
 # ──────────────────────────────────────────────────────────────────────────────
 # Legacy price-feed metrics (ecommerce)
@@ -708,15 +708,6 @@ raw_to_normalized_success_rate = Gauge(
     "Fraction of raw records successfully normalized in the last 24h (0.0 – 1.0)",
 )
 
-telegram_publish_success_total = Counter(
-    "telegram_publish_success_total",
-    "Total Telegram alert messages successfully sent by the watchdog notifier",
-)
-
-telegram_publish_failure_total = Counter(
-    "telegram_publish_failure_total",
-    "Total Telegram alert messages that failed to send from the watchdog notifier",
-)
 
 domains_with_active_alerts = Gauge(
     "domains_with_active_alerts",
@@ -936,8 +927,8 @@ scraper_drift_risk = Gauge(
 # ──────────────────────────────────────────────────────────────────────────────
 
 import time
+from collections.abc import Generator
 from contextlib import contextmanager
-from typing import Generator
 
 
 @contextmanager
@@ -1064,13 +1055,16 @@ def _seconds_between(newer, older) -> float:
 def _wire_operational_truth_metrics() -> None:
     from sqlalchemy import func
 
-    from app.analytics.models import ProductPriceAnalytics, RealEstateAnalytics, TradingAnalytics
-    from app.normalization.models import NormalizedMarketCandle, NormalizedProduct, NormalizedRealEstateListing
+    from app.analytics.models import ProductPriceAnalytics, TradingAnalytics
+    from app.normalization.models import (
+        NormalizedMarketCandle,
+        NormalizedProduct,
+    )
     from app.pipeline.models import PipelineRun
     from app.raw.models import RawCollection
     from database.session import SessionLocal
 
-    modules = ("crypto", "ecommerce", "real_estate", "sports_odds", "trading", "jobs")
+    modules = ("crypto", "ecommerce", "sports_odds", "trading")
 
     def with_db(query_fn):
         db = SessionLocal()
@@ -1083,13 +1077,11 @@ def _wire_operational_truth_metrics() -> None:
         "crypto": NormalizedMarketCandle,
         "trading": NormalizedMarketCandle,
         "ecommerce": NormalizedProduct,
-        "real_estate": NormalizedRealEstateListing,
     }
     analytics_models = {
         "crypto": TradingAnalytics,
         "trading": TradingAnalytics,
         "ecommerce": ProductPriceAnalytics,
-        "real_estate": RealEstateAnalytics,
     }
 
     for module in modules:
@@ -1385,7 +1377,7 @@ def _wire_reliability_metrics() -> None:
     scheduler_execution_drift_seconds.set_function(_exec_drift)
 
     # ── Queue lag (DB-backed, evaluated at scrape time) ───────────────────────
-    _q_modules = ("ecommerce", "crypto", "real_estate", "trading", "jobs")
+    _q_modules = ("ecommerce", "crypto", "trading")
 
     def _with_db(fn):
         from database.session import SessionLocal as _SL
@@ -1400,6 +1392,7 @@ def _wire_reliability_metrics() -> None:
     for module in _q_modules:
         def _backlog(m=module) -> float:
             from sqlalchemy import func as _f
+
             from app.raw.models import RawCollection as _RC
             r = _with_db(lambda db, _m=m: db.query(_f.count(_RC.id))
                          .filter(_RC.module == _m, _RC.processing_status == "normalization_pending")
@@ -1407,8 +1400,11 @@ def _wire_reliability_metrics() -> None:
             return float(r or 0)
 
         def _oldest_pending_age(m=module) -> float:
-            from datetime import datetime, timezone as _tz
+            from datetime import datetime
+            from datetime import timezone as _tz
+
             from sqlalchemy import func as _f
+
             from app.raw.models import RawCollection as _RC
             oldest = _with_db(lambda db, _m=m: db.query(_f.min(_RC.collected_at))
                               .filter(_RC.module == _m, _RC.processing_status == "normalization_pending")
@@ -1421,8 +1417,11 @@ def _wire_reliability_metrics() -> None:
             return max(0.0, (datetime.now(_tz.utc) - oldest).total_seconds())
 
         def _oldest_any_age(m=module) -> float:
-            from datetime import datetime, timezone as _tz
+            from datetime import datetime
+            from datetime import timezone as _tz
+
             from sqlalchemy import func as _f
+
             from app.raw.models import RawCollection as _RC
             oldest = _with_db(lambda db, _m=m: db.query(_f.min(_RC.collected_at))
                               .filter(_RC.module == _m).scalar())
@@ -1539,88 +1538,6 @@ outcome_eval_duration_seconds = Histogram(
 )
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# FASE 6 — Dataset Observability (Jobs + Real Estate)
-# ─────────────────────────────────────────────────────────────────────────────
-
-# ── Jobs metrics ──────────────────────────────────────────────────────────────
-
-jobs_records_total = Gauge(
-    "jobs_records_total",
-    "Total de registros de vagas por fonte na tabela raw_collections.",
-    ["source"],
-)
-
-jobs_freshness_score = Gauge(
-    "jobs_freshness_score",
-    "Score de frescor do dataset de vagas por fonte (0-100). "
-    "Calculado com base na idade dos registros vs janela esperada.",
-    ["source"],
-)
-
-jobs_health_score = Gauge(
-    "jobs_health_score",
-    "Score de saude operacional do coletor de vagas (0-100). "
-    "Composto de success_rate, frescor, volume e taxa de duplicatas.",
-    ["collector_name"],
-)
-
-jobs_duplicate_rate = Gauge(
-    "jobs_duplicate_rate",
-    "Taxa de duplicatas no dataset de vagas por fonte (0.0-1.0).",
-    ["source"],
-)
-
-jobs_success_rate = Gauge(
-    "jobs_success_rate",
-    "Taxa de execucoes bem-sucedidas do coletor de vagas (0.0-1.0).",
-    ["collector_name"],
-)
-
-jobs_failed_runs_total = Gauge(
-    "jobs_failed_runs_total",
-    "Total acumulado de execucoes com falha por coletor de vagas.",
-    ["collector_name"],
-)
-
-# ── Real Estate metrics ───────────────────────────────────────────────────────
-
-real_estate_records_total = Gauge(
-    "real_estate_records_total",
-    "Total de registros de imoveis por fonte na tabela raw_collections.",
-    ["source"],
-)
-
-real_estate_freshness_score = Gauge(
-    "real_estate_freshness_score",
-    "Score de frescor do dataset de imoveis por fonte (0-100).",
-    ["source"],
-)
-
-real_estate_health_score = Gauge(
-    "real_estate_health_score",
-    "Score de saude operacional do coletor de imoveis (0-100).",
-    ["collector_name"],
-)
-
-real_estate_duplicate_rate = Gauge(
-    "real_estate_duplicate_rate",
-    "Taxa de duplicatas no dataset de imoveis por fonte (0.0-1.0).",
-    ["source"],
-)
-
-real_estate_success_rate = Gauge(
-    "real_estate_success_rate",
-    "Taxa de execucoes bem-sucedidas do coletor de imoveis (0.0-1.0).",
-    ["collector_name"],
-)
-
-real_estate_failed_runs_total = Gauge(
-    "real_estate_failed_runs_total",
-    "Total acumulado de execucoes com falha por coletor de imoveis.",
-    ["collector_name"],
-)
-
 # ── Cross-domain source health ─────────────────────────────────────────────────
 
 source_health_score = Gauge(
@@ -1681,23 +1598,6 @@ dataset_first_record_timestamp = Gauge(
     "dataset_first_record_timestamp_seconds",
     "Unix timestamp do registro mais antigo em raw_collections por dataset.",
     ["dataset"],
-)
-
-# ── Real Estate field presence & drift (FASE 6) ───────────────────────────────
-
-real_estate_field_presence_rate = Gauge(
-    "real_estate_field_presence_rate",
-    "Taxa de presenca de campo em structured_fields por agencia (0-1). "
-    "field: title|listing_type|property_type|price|city|neighborhood. "
-    "Calculado pelo compute_source_health_job.",
-    ["agency_id", "field"],
-)
-
-real_estate_schema_drift_score = Gauge(
-    "real_estate_schema_drift_score",
-    "Score de drift de schema por agencia (0-100). "
-    "100=sem drift, diminui 15 pontos por campo com queda >20pp vs baseline.",
-    ["agency_id"],
 )
 
 # ── Scheduler job durations ───────────────────────────────────────────────────

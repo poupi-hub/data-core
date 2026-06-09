@@ -43,8 +43,6 @@ from app.modules.crypto.api import router as crypto_router
 from app.modules.crypto.edge.api import router as edge_router
 from app.modules.nba.api import router as nba_router
 from app.modules.nba.quant.api import router as nba_quant_router
-from app.modules.real_estate import models as real_estate_models
-from app.modules.real_estate.api import router as real_estate_router
 from app.modules.registry import register_pipeline_modules
 from app.modules.sports_odds import models as sports_odds_models
 from app.modules.sports_odds.api import router as sports_odds_router
@@ -66,7 +64,6 @@ from database.session import SessionLocal, engine
 from logs.config import configure_logging
 from scheduler.service import create_scheduler, start_scheduler, stop_scheduler
 
-_ = real_estate_models
 _ = sports_odds_models
 _ = raw_models
 _ = normalization_models
@@ -268,7 +265,6 @@ def create_app() -> FastAPI:
     app.include_router(telegram_router, dependencies=auth_dep)
     app.include_router(crypto_router, dependencies=auth_dep)
     app.include_router(edge_router, dependencies=auth_dep)
-    app.include_router(real_estate_router, dependencies=auth_dep)
     app.include_router(sports_odds_router, dependencies=auth_dep)
     app.include_router(nba_router, dependencies=auth_dep)
     app.include_router(nba_quant_router, dependencies=auth_dep)

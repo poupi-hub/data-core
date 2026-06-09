@@ -4,7 +4,6 @@ from collections.abc import Callable
 from typing import TypeVar
 
 from app.auto_healing.scheduler import auto_healing_watchdog_job
-from app.modules.real_estate.scheduler import run_real_estate_daily_collection
 from app.runtime.scheduler_heartbeat import record_job_execution
 from app.runtime.scheduler_reliability import SchedulerReliabilityEngine
 from core.config import settings
@@ -19,7 +18,6 @@ from scheduler.jobs import (
     operational_watchdog_job,
     poupi_baby_coverage_intelligence_job,
     run_ecommerce_url_targets_job,
-    run_real_estate_enrichment_job,
     signal_outcomes_job,
     take_daily_snapshot_job,
 )
@@ -147,14 +145,6 @@ def run_ecommerce_url_targets_reliable() -> None:
     )
 
 
-def run_real_estate_daily_reliable() -> None:
-    SchedulerReliabilityEngine().run(
-        "run_real_estate_daily_collection",
-        run_real_estate_daily_collection,
-        priority="LOW",
-    )
-
-
 def run_operational_watchdog_with_retry() -> None:
     with_retry(operational_watchdog_job, job_name="operational_watchdog_job")
 
@@ -176,10 +166,6 @@ def run_poupi_baby_coverage_intelligence_reliable() -> None:
 
 def run_signal_outcomes_reliable() -> None:
     _with_heartbeat("signal_outcomes_job", _run_signal_outcomes_with_retry)
-
-
-def run_real_estate_enrichment_with_retry() -> None:
-    with_retry(run_real_estate_enrichment_job, job_name="run_real_estate_enrichment_job")
 
 
 def run_source_health_with_retry() -> None:

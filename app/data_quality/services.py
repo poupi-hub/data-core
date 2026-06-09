@@ -11,7 +11,6 @@ from app.normalization.models import (
     NormalizedCryptoSnapshot,
     NormalizedMarketCandle,
     NormalizedProduct,
-    NormalizedRealEstateListing,
     NormalizedSportsOdd,
 )
 
@@ -117,16 +116,6 @@ class DataQualityService:
                     positive("price"),
                     allowed_values("currency", {"BRL", "USD", "EUR"}, allow_empty=True),
                     metadata_not_false("raw_success", allow_missing=True),
-                ],
-            ),
-            "real_estate": (
-                NormalizedRealEstateListing,
-                [
-                    required("title"),
-                    required("city"),
-                    positive("price"),
-                    positive("area_m2", allow_empty=True),
-                    plausible_range("area_m2", minimum=5, maximum=20000, allow_empty=True),
                 ],
             ),
             "crypto": (

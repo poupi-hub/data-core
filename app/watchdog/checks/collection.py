@@ -13,12 +13,12 @@ import logging
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
-from sqlalchemy import case, func, text
+from sqlalchemy import case, func
 from sqlalchemy.orm import Session
 
+from app.raw.models import RawCollection
 from app.watchdog.checks import CheckResult, WatchdogAlert
 from core.config import settings
-from app.raw.models import RawCollection
 from database.models import CollectionRun, CollectionTarget, RunStatus
 
 logger = logging.getLogger(__name__)
@@ -173,7 +173,7 @@ class CollectionHealthChecker:
             )
             .filter(
                 RawCollection.collected_at >= now - timedelta(hours=24),
-                RawCollection.module.in_(["jobs", "real_estate"]),
+                RawCollection.module.in_(["ecommerce", "crypto"]),
             )
             .group_by(RawCollection.source_name)
             .all()
@@ -212,10 +212,7 @@ class CollectionHealthChecker:
             .all()
         )
         # Only alert for collectors we know are supposed to produce data
-        _SUSPENDED_COLLECTORS = {"jobs.gupy", "jobs.workday"}
         for r in zero_runs:
-            if r.collector_name in _SUSPENDED_COLLECTORS:
-                continue
             alerts.append(WatchdogAlert(
                 severity="warning",
                 code="collector_zero_output",
