@@ -34,6 +34,7 @@ def _make_signal(setup="BACK_TO_BACK_FADE_V1", odd=-110.0, line=None):
     s.selection = "Los Angeles Lakers"
     s.rationale = "Away on B2B, home rested (2d)"
     s.confidence = 1.0
+    s.telegram_sent_at = None
     return s
 
 
@@ -439,7 +440,7 @@ def test_format_b2b_alert_contains_key_fields():
     assert "BACK_TO_BACK_FADE_V1" in text
     assert "Los Angeles Lakers" in text
     assert "Boston Celtics" in text
-    assert "Observation only" in text
+    assert "aposta real" in text or "Observation" in text
     assert "Away on B2B" in text or "B2B" in text
 
 
@@ -502,6 +503,7 @@ def test_send_alert_success():
     import importlib
     env = {
         "TELEGRAM_ENABLED": "true",
+        "ENABLE_NBA_TELEGRAM_SIMULATIONS": "true",
         "TELEGRAM_BOT_TOKEN": "123:ABC",
         "TELEGRAM_CHAT_ID": "456",
     }
@@ -550,11 +552,13 @@ def test_send_alert_http_error_returns_false():
     importlib.reload(mod)
 
 
-def test_send_signal_alert_only_b2b():
-    """Only BACK_TO_BACK_FADE_V1 signals trigger alerts."""
+def test_send_signal_alert_skips_when_already_sent():
+    """Signals already sent (telegram_sent_at set) are not resent."""
     from app.modules.nba.quant.telegram_alerts import send_signal_alert
+    from datetime import datetime, timezone
 
     signal = _make_signal(setup="PACE_OVER_V1")
+    signal.telegram_sent_at = datetime.now(timezone.utc)
     game = _make_game()
     result = send_signal_alert(signal, game)
     assert result is False
@@ -569,7 +573,6 @@ def test_validate_config_not_configured():
         importlib.reload(mod)
         config = mod.validate_config()
         assert config["configured"] is False
-        assert "BACK_TO_BACK_FADE_V1" in config["alert_setups"]
     finally:
         if saved:
             os.environ["TELEGRAM_BOT_TOKEN"] = saved

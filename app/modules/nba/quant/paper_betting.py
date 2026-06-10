@@ -20,6 +20,8 @@ from app.modules.nba.quant.models import (
 def _pnl(odd: float, stake: float, won: bool) -> float:
     if not won:
         return -stake
+    if odd == 0:
+        raise ValueError(f"Invalid odd value: {odd!r}")
     if odd >= 0:
         return round(stake * odd / 100, 4)
     return round(stake * 100 / abs(odd), 4)
@@ -97,6 +99,17 @@ def settle_game(db: Session, game_id: str) -> int:
         ).inc()
 
     db.commit()
+
+    # Send settlement alerts (best-effort, never blocks settlement)
+    try:
+        from app.modules.nba.quant.telegram_alerts import send_settlement_alert
+        for bet in bets:
+            if bet.status != BetStatus.pending:
+                send_settlement_alert(bet.signal, bet, game, db=db)
+    except Exception as exc:
+        import logging
+        logging.getLogger(__name__).warning("Settlement Telegram alert failed: %s", exc)
+
     return settled
 
 

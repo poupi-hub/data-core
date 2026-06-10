@@ -481,11 +481,85 @@ def telegram_test() -> dict[str, Any]:
     from app.modules.nba.quant.telegram_alerts import send_alert
     ok = send_alert(
         "🏀 *NBA Quant — Test Alert*\n\n"
-        "Configuration validated. Observation-only alerts active for "
-        "`BACK_TO_BACK_FADE_V1`.\n\n"
-        "_This is a test message._"
+        "Simulações NBA ativas via canal #executive.\n\n"
+        "_Mensagem de teste._"
     )
     return {"sent": ok, "status": "ok" if ok else "failed"}
+
+
+# ── Betfair endpoints ─────────────────────────────────────────────────────────
+
+@router.get("/betfair/config")
+def betfair_config() -> dict[str, Any]:
+    """Check Betfair credentials configuration (never exposes secrets)."""
+    from app.modules.nba.quant.betfair_collector import validate_config
+    return validate_config()
+
+
+@router.get("/betfair/status")
+def betfair_status() -> dict[str, Any]:
+    """Test Betfair connection: login + account funds check (read-only)."""
+    from app.modules.nba.quant.betfair_collector import check_connection, is_configured
+    if not is_configured():
+        return {"connected": False, "error": "BETFAIR_USERNAME/PASSWORD/APP_KEY not set"}
+    result = check_connection()
+    return {
+        "connected": result.connected,
+        "account_funds": result.account_funds,
+        "error": result.error,
+    }
+
+
+@router.get("/betfair/events")
+def betfair_events(days_ahead: int = 7) -> dict[str, Any]:
+    """List upcoming NBA events on Betfair (read-only)."""
+    from app.modules.nba.quant.betfair_collector import is_configured, list_nba_events
+    if not is_configured():
+        return {"events": [], "error": "Betfair not configured"}
+    try:
+        events = list_nba_events(days_ahead=days_ahead)
+        return {"events": events, "count": len(events)}
+    except Exception as exc:
+        return {"events": [], "error": str(exc)}
+
+
+@router.get("/betfair/markets/{event_id}")
+def betfair_markets(event_id: str) -> dict[str, Any]:
+    """List markets for a Betfair NBA event (read-only)."""
+    from app.modules.nba.quant.betfair_collector import is_configured, list_markets
+    if not is_configured():
+        return {"markets": [], "error": "Betfair not configured"}
+    try:
+        markets = list_markets(event_id)
+        return {
+            "markets": [
+                {
+                    "market_id": m.market_id,
+                    "market_name": m.market_name,
+                    "total_matched": m.total_matched,
+                    "runners": m.runners,
+                }
+                for m in markets
+            ],
+            "count": len(markets),
+        }
+    except Exception as exc:
+        return {"markets": [], "error": str(exc)}
+
+
+@router.get("/betfair/odds/{market_id}")
+def betfair_odds(market_id: str) -> dict[str, Any]:
+    """Fetch best back/lay odds for a Betfair market (read-only)."""
+    from app.modules.nba.quant.betfair_collector import get_odds, is_configured
+    if not is_configured():
+        return {"runners": [], "error": "Betfair not configured"}
+    try:
+        result = get_odds(market_id)
+        if result is None:
+            return {"runners": [], "error": "No market book found"}
+        return {"market_id": result.market_id, "runners": result.runners}
+    except Exception as exc:
+        return {"runners": [], "error": str(exc)}
 
 
 # ── Metrics helpers ────────────────────────────────────────────────────────────

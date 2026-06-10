@@ -154,6 +154,7 @@ class NbaSignal(Base):
     rationale: Mapped[str | None] = mapped_column(Text, nullable=True)
     confidence: Mapped[float] = mapped_column(Float, default=1.0)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), index=True)  # noqa: E501
+    telegram_sent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     game: Mapped[NbaGame] = relationship(back_populates="signals")
     quant_bet: Mapped["NbaQuantBet | None"] = relationship(back_populates="signal", uselist=False)
@@ -175,6 +176,8 @@ class NbaQuantBet(Base):
     status: Mapped[BetStatus] = mapped_column(Enum(BetStatus), default=BetStatus.pending, index=True)  # noqa: E501
     settled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     pnl: Mapped[float | None] = mapped_column(Numeric(12, 4), nullable=True)
+    source_bookmaker: Mapped[str] = mapped_column(String(80), default="market")
+    settlement_telegram_sent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)  # noqa: E501
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     signal: Mapped[NbaSignal] = relationship(back_populates="quant_bet")

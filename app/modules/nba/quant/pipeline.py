@@ -242,7 +242,7 @@ def _run_all_games_with_alerts(db: Session) -> dict:
         total_signals += len(new_sigs)
 
         for sig in new_sigs:
-            if send_signal_alert(sig, game, game.features):
+            if send_signal_alert(sig, game, game.features, db=db):
                 total_alerts += 1
 
     return {"signals": total_signals, "alerts": total_alerts}
