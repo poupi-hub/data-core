@@ -20,4 +20,4 @@ prometheus-fastapi-instrumentator>=6.1.0
 redis>=5.0.0
 docker>=7.0.0
 slowapi>=0.1.9
-betfairlightweight>=3.19.0
+betfairlightweight>=2.23.0
