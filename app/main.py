@@ -55,6 +55,7 @@ from app.operational_truth.policy.api import router as operational_policy_router
 from app.pipeline import models as pipeline_models  # ensure tables are registered
 from app.pipeline_api import router as pipeline_router
 from app.raw import models as raw_models
+from app.global_auto_health.router import router as global_auto_health_router
 from app.runtime.api import router as runtime_router
 from app.scrapers.api import router as scrapers_router
 from app.system_status import build_system_status
@@ -259,6 +260,7 @@ def create_app() -> FastAPI:
 
     auth_dep = [Depends(verify_api_key)]
     app.include_router(system_status_router)
+    app.include_router(global_auto_health_router)
     app.include_router(api_router, dependencies=auth_dep)
     app.include_router(poupi_baby_router, dependencies=auth_dep)
     app.include_router(pipeline_router, dependencies=auth_dep)

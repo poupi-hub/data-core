@@ -22,6 +22,7 @@ from scheduler.job_wrappers import (
     run_dataset_quality_crypto_reliable,
     run_ecommerce_url_targets_reliable,
     run_incident_history_aggregation,
+    run_global_auto_health_daily,
     run_nba_quant_pipeline_reliable,
     run_normalize_reliable,
     run_operational_watchdog_with_retry,
@@ -400,6 +401,18 @@ def create_scheduler(
         hour=0,
         minute=30,
         id="observability:daily_snapshot",
+        replace_existing=True,
+        max_instances=1,
+        coalesce=True,
+    )
+
+    _add_job_preserving_persisted(
+        scheduler,
+        run_global_auto_health_daily,
+        "cron",
+        hour=7,
+        minute=0,
+        id="observability:global_auto_health_daily",
         replace_existing=True,
         max_instances=1,
         coalesce=True,

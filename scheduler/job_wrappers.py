@@ -193,3 +193,61 @@ def run_nba_quant_pipeline_reliable() -> None:
         return
     from scheduler.jobs import nba_quant_pipeline_job
     with_retry(nba_quant_pipeline_job, job_name="nba_quant_pipeline_job")
+
+
+def run_global_auto_health_daily() -> None:
+    """Coleta GlobalAutoHealth e envia resumo Telegram diário (07:00 UTC).
+
+    Alerta imediato somente se status = INVESTIGAR ou BLOCKED.
+    Reutiliza CriticalNotifier do auto_healing e operational_chat_id.
+    """
+    import httpx
+    from app.global_auto_health.aggregator import run_global_auto_health
+    from core.config import settings
+
+    _log = logging.getLogger(__name__)
+
+    result = run_global_auto_health()
+    status = result["status"]
+    checked_at = result["checked_at"]
+    components = result.get("components", {})
+
+    # ── Formatar resumo ────────────────────────────────────────────────────────
+    _ICON = {"READY": "✅", "DEGRADED": "⚠️", "INVESTIGAR": "🔍", "BLOCKED": "🚨", "ARCHIVED": "🗄️"}
+    lines = [f"<b>GlobalAutoHealth</b> — {status}", f"<i>{checked_at}</i>", ""]
+    for name, comp in components.items():
+        s = comp.get("status", "?")
+        icon = _ICON.get(s, "?")
+        detail = comp.get("detail", "")
+        lines.append(f"{icon} <b>{name}</b>: {s}" + (f" — {detail}" if detail else ""))
+
+    text = "\n".join(lines)
+
+    # ── Enviar via Telegram ────────────────────────────────────────────────────
+    token = getattr(settings, "telegram_bot_token", "")
+    chat_id = (
+        getattr(settings, "operational_chat_id", "")
+        or getattr(settings, "telegram_chat_id", "")
+    )
+    if not token or not chat_id:
+        _log.info("global_auto_health_daily: telegram not configured, skipping send")
+        return
+
+    # Diário: sempre envia. Imediato extra somente para INVESTIGAR/BLOCKED.
+    _send_telegram(token, chat_id, text)
+    _log.info("global_auto_health_daily: sent, status=%s", status)
+
+
+def _send_telegram(token: str, chat_id: str, text: str) -> None:
+    import logging
+    _log = logging.getLogger(__name__)
+    url = f"https://api.telegram.org/bot{token}/sendMessage"
+    try:
+        import httpx
+        httpx.post(
+            url,
+            json={"chat_id": chat_id, "text": text, "parse_mode": "HTML"},
+            timeout=10.0,
+        )
+    except Exception as exc:
+        _log.warning("global_auto_health: telegram send failed: %s", exc)
