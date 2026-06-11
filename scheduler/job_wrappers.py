@@ -186,5 +186,10 @@ def run_incident_history_aggregation() -> None:
 
 
 def run_nba_quant_pipeline_reliable() -> None:
+    from core.config import settings
+    if not settings.enable_sports:
+        import logging
+        logging.getLogger(__name__).info("sports archived: nba_quant_pipeline_job skipped (ENABLE_SPORTS=false)")
+        return
     from scheduler.jobs import nba_quant_pipeline_job
     with_retry(nba_quant_pipeline_job, job_name="nba_quant_pipeline_job")

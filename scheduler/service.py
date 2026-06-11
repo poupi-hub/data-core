@@ -353,7 +353,8 @@ def create_scheduler(
         )
 
     # ── NBA Quant — daily incremental update at 09:00 BRT (12:00 UTC) ────────
-    if settings.scheduler_domain_jobs_enabled:
+    # Skipped when ENABLE_SPORTS=false (sports module archived).
+    if settings.scheduler_domain_jobs_enabled and settings.enable_sports:
         _add_job_preserving_persisted(
             scheduler,
             run_nba_quant_pipeline_reliable,
@@ -365,6 +366,8 @@ def create_scheduler(
             max_instances=1,
             coalesce=True,
         )
+    elif not settings.enable_sports:
+        logger.info("sports archived: nba:quant_pipeline_daily not scheduled (ENABLE_SPORTS=false)")
 
     # ── FASE 3/4/5 — Source Health, Dataset Integrity, Daily Snapshots ───────
     # compute_source_health_job   : a cada 4h — saude operacional por coletor

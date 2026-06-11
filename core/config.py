@@ -117,6 +117,13 @@ class Settings(BaseSettings):
     auto_healing_service_urls: str = ""
     poupi_crypto_internal_url: str = "http://poupi-crypto-api:8002"
 
+    # Sports module master switch (NBA + WNBA + sports_odds).
+    # Set ENABLE_SPORTS=false to park all sports jobs, routers, and Telegram alerts
+    # without deleting any data or code.  Historical data remains queryable via DB.
+    enable_sports: bool = True
+    # NBA Telegram simulation alerts (only fires when enable_sports=true too)
+    enable_nba_telegram_simulations: bool = False
+
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
 
