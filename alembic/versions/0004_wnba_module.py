@@ -4,6 +4,14 @@ Revision ID: 0004_wnba_module
 Revises: 0003_sports_odds_module
 Create Date: 2026-06-11
 
+NOTE: The numeric prefix "0004" is intentionally shared with
+0004_flexible_raw_contract (down_revision: 39d33505c86b).
+These two migrations are on SEPARATE branches of the Alembic DAG:
+  branch A: ...→ 0003_sports_odds_module → 0004_wnba_module → ...
+  branch B: ...→ 39d33505c86b           → 0004_flexible_raw_contract → ...
+Both branches are merged downstream. There is no functional conflict;
+the duplicate numeric prefix is a naming artefact, not an Alembic error.
+
 Tables created:
   wnba_games, wnba_odds, wnba_features,
   wnba_signals, wnba_quant_bets, wnba_edge_registry

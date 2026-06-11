@@ -8,6 +8,11 @@
 
 data-core.<SEU_DOMINIO> {
     # HTTPS automático via Let's Encrypt
+
+    # /metrics is Prometheus-internal only — block external access.
+    @metrics path /metrics /metrics/*
+    respond @metrics 403
+
     reverse_proxy localhost:8000
 
     # Headers de segurança
@@ -37,6 +42,10 @@ data-core.<SEU_DOMINIO> {
 }
 
 crypto.<SEU_DOMINIO> {
+    # /metrics is Prometheus-internal only — block external access.
+    @metrics path /metrics /metrics/*
+    respond @metrics 403
+
     reverse_proxy localhost:8002
 
     header {
