@@ -357,5 +357,5 @@ def _update_global_metrics(stats: GlobalAnalytics) -> None:
     for s in stats.setups:
         wnba_q_setup_roi.labels(setup=s.setup_name).set(s.roi)
         wnba_q_setup_win_rate.labels(setup=s.setup_name).set(s.win_rate)
-        cls_val = {"PROFITABLE": 1, "NEUTRAL": 0, "LOSING": -1}.get(s.classification, 0)
+        cls_val = {"profitable": 1, "neutral": 0, "losing": -1}.get(s.classification, 0)
         wnba_q_setup_classification.labels(setup=s.setup_name).set(cls_val)

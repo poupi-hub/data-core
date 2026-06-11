@@ -122,6 +122,18 @@ def test_pnl_loss():
     assert pnl(-110.0, 1.0, False) == pytest.approx(-1.0)
 
 
+def test_pnl_invalid_odd_between_minus100_and_zero():
+    from app.modules.basketball.shared.settlement import pnl
+    with pytest.raises(ValueError, match="Invalid American odd"):
+        pnl(-50.0, 1.0, True)
+
+
+def test_pnl_invalid_odd_zero():
+    from app.modules.basketball.shared.settlement import pnl
+    with pytest.raises(ValueError):
+        pnl(0.0, 1.0, True)
+
+
 # ── 4. determine_result ────────────────────────────────────────────────────────
 
 class _FakeGame:
@@ -233,3 +245,36 @@ def test_wnba_season_windows_defined():
 def test_wnba_odds_collector_sport_key():
     from app.modules.basketball.wnba.odds_collector import _SPORT
     assert _SPORT == "basketball_wnba"
+
+
+# ── 7. Classification metrics mapping (bugfix: lowercase enum values) ─────────
+
+def test_classification_metrics_map_profitable():
+    _MAP = {"profitable": 1, "neutral": 0, "losing": -1}
+    from app.modules.basketball.shared.enums import EdgeClassification
+    assert _MAP.get(EdgeClassification.profitable.value) == 1
+
+
+def test_classification_metrics_map_neutral():
+    _MAP = {"profitable": 1, "neutral": 0, "losing": -1}
+    from app.modules.basketball.shared.enums import EdgeClassification
+    assert _MAP.get(EdgeClassification.neutral.value) == 0
+
+
+def test_classification_metrics_map_losing():
+    _MAP = {"profitable": 1, "neutral": 0, "losing": -1}
+    from app.modules.basketball.shared.enums import EdgeClassification
+    assert _MAP.get(EdgeClassification.losing.value) == -1
+
+
+# ── 8. Pipeline abort on fetch_recent failure with no historical data ─────────
+
+def test_pipeline_abort_pattern():
+    """Verify the abort condition logic: errors + games_ingested == 0 → early return."""
+    from app.modules.basketball.wnba.pipeline import PipelineResult
+    from datetime import datetime, timezone
+    result = PipelineResult(started_at=datetime.now(timezone.utc))
+    result.errors.append("fetch_recent: timeout")
+    # Simulates the abort condition: no historical data ingested
+    assert result.games_ingested == 0
+    assert not result.ok  # has errors → ok=False

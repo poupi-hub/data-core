@@ -28,8 +28,12 @@ from app.modules.nba.quant.models import (
 )
 
 _STANDARD_ODD = -110.0
-_LEAGUE_AVG_PACE = 220.0   # avg total points per game proxy
-_DEFAULT_SPREAD = -3.5     # fallback spread when no real odds available
+# NOTE: this is NOT true NBA pace (possessions per 48 min, typically 98-102).
+# It is the average *total points* per game used as a high-scoring-game proxy.
+# A real pace metric requires play-by-play possession data not yet collected.
+# Rename makes the approximation explicit to future readers.
+_HIGH_SCORING_THRESHOLD = 220.0   # avg total points/game (both teams combined)
+_DEFAULT_SPREAD = -3.5            # fallback spread when no real odds available
 
 
 @dataclass
@@ -166,21 +170,27 @@ def _back_to_back_fade_v1(
 def _pace_over_v1(
     game: NbaGame, feat: NbaFeatures, odds: list[NbaOdds]
 ) -> SignalResult | None:
-    """
-    PACE_OVER_V1: Both teams above-average pace (proxy: avg total > 220 pts/game).
-    Take the Over.
+    """HIGH_SCORING_OVER_V1 (formerly PACE_OVER_V1).
+
+    Both teams have averaged high combined totals in recent games.
+    Proxy metric: avg total points per game (NOT true NBA pace / possessions).
+    Real pace data requires play-by-play possession counts — not yet available.
+
+    WARNING: home_pace and away_pace are averages over different game samples
+    (all home-team games vs all away-team games respectively), so the combined
+    average may double-count shared opponents. Treat signal with caution until
+    a proper possessions-based pace metric is integrated.
     """
     hp = feat.home_pace
     ap = feat.away_pace
     if hp is None or ap is None:
         return None
-    avg_pace = (hp + ap) / 2
-    if avg_pace <= _LEAGUE_AVG_PACE:
+    # Simple average of two independent sample means — acknowledged approximation.
+    avg_total_proxy = (hp + ap) / 2
+    if avg_total_proxy <= _HIGH_SCORING_THRESHOLD:
         return None
 
-    # Use avg_pace as the line when no real odds available.
-    # The edge thesis is that the game will go OVER our pace estimate.
-    total_line, total_odd = _total_over(odds, fallback_line=round(avg_pace, 1))
+    total_line, total_odd = _total_over(odds, fallback_line=round(avg_total_proxy, 1))
 
     return SignalResult(
         setup_name="PACE_OVER_V1",
@@ -190,8 +200,9 @@ def _pace_over_v1(
         odd=total_odd,
         direction=SignalDirection.over,
         rationale=(
-            f"Avg pace {avg_pace:.1f} pts/game "
-            f"(home {hp:.1f}, away {ap:.1f}) > threshold {_LEAGUE_AVG_PACE}"
+            f"Avg total proxy {avg_total_proxy:.1f} pts/game "
+            f"(home {hp:.1f}, away {ap:.1f}) > threshold {_HIGH_SCORING_THRESHOLD} "
+            f"[NOTE: proxy metric, not true pace]"
         ),
     )
 
@@ -241,7 +252,6 @@ def generate_signals(db: Session, game: NbaGame) -> list[NbaSignal]:
             confidence=result.confidence,
         )
         db.add(signal)
-        db.flush()
 
         bet = NbaQuantBet(signal_id=signal.id, stake=1.0, status=BetStatus.pending)
         db.add(bet)

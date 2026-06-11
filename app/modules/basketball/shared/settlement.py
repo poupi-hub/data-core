@@ -19,8 +19,8 @@ def pnl(odd: float, stake: float, won: bool) -> float:
     """Compute PnL using American odds convention."""
     if not won:
         return -stake
-    if odd == 0:
-        raise ValueError(f"Invalid odd value: {odd!r}")
+    if odd == 0 or -100 < odd < 0:
+        raise ValueError(f"Invalid American odd: {odd!r} (must be >= 100 or <= -100)")
     if odd >= 0:
         return round(stake * odd / 100, 4)
     return round(stake * 100 / abs(odd), 4)

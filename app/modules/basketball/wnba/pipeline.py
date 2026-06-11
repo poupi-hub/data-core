@@ -85,6 +85,12 @@ def run_full_pipeline(
         result.recent_updated = fetch_recent(db, days_back=7)
     except Exception as exc:
         result.errors.append(f"fetch_recent: {exc}")
+        if result.games_ingested == 0:
+            result.finished_at = datetime.now(timezone.utc)
+            wnba_q_pipeline_runs_total.labels(status="error").inc()
+            wnba_q_pipeline_duration_seconds.set(time.monotonic() - t0)
+            logger.error("WNBA pipeline aborted: fetch_recent failed with no historical data", extra={"exc": str(exc)})
+            return result
 
     try:
         odds_result = fetch_upcoming_odds(db)

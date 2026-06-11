@@ -84,9 +84,9 @@ def _avg_pace(games: list[WnbaGame], team: str) -> float | None:
     return round(sum(totals) / len(totals), 1) if totals else None
 
 
-def compute_features(db: Session, game_id: UUID) -> WnbaFeatures | None:
+def compute_features(db: Session, game_id: UUID, _game: WnbaGame | None = None) -> WnbaFeatures | None:
     """Compute and upsert features for a WNBA game. Returns None if game not found."""
-    game = db.query(WnbaGame).filter(WnbaGame.id == game_id).first()
+    game = _game or db.query(WnbaGame).filter(WnbaGame.id == game_id).first()
     if not game:
         return None
 
@@ -144,6 +144,6 @@ def compute_all_pending(db: Session) -> int:
     )
     count = 0
     for game in games:
-        if compute_features(db, game.id):
+        if compute_features(db, game.id, _game=game):
             count += 1
     return count

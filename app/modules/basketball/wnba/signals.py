@@ -272,7 +272,6 @@ def generate_signals(db: Session, game: WnbaGame) -> list[WnbaSignal]:
             confidence=result.confidence,
         )
         db.add(signal)
-        db.flush()
 
         bet = WnbaQuantBet(signal_id=signal.id, stake=1.0, status=BetStatus.pending)
         db.add(bet)
