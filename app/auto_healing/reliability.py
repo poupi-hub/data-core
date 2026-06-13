@@ -228,12 +228,13 @@ class ReliabilityScorer:
     Grade: A+ ≥ 98, A ≥ 90, B ≥ 75, C ≥ 60, D ≥ 45, F < 45
     """
 
-    def __init__(self, window_hours: int = 168) -> None:
+    def __init__(self, window_hours: int = 168, history_reader=None) -> None:
         self._window_hours = window_hours
+        self._reader = history_reader
 
     def score_all(self) -> dict[str, ServiceScore]:
         from app.auto_healing.analytics import HistoryReader, MetricsCollector, _status_ok
-        reader = HistoryReader()
+        reader = self._reader or HistoryReader()
         collector = MetricsCollector()
         entries = reader.read_entries(self._window_hours)
 

@@ -348,9 +348,12 @@ class HistoryReader:
     def __init__(self, history_path: str | None = None) -> None:
         from core.config import settings
         self._path = Path(history_path or settings.auto_healing_history_path)
+        self._entries_cache: dict[int, list[dict]] = {}
 
     def read_entries(self, window_hours: int = 168) -> list[dict]:
         """Return all history entries within the window (newest first in file = chronological)."""
+        if window_hours in self._entries_cache:
+            return self._entries_cache[window_hours]
         if not self._path.exists():
             return []
         cutoff = datetime.now(timezone.utc) - timedelta(hours=window_hours)
@@ -371,6 +374,7 @@ class HistoryReader:
                         continue
         except OSError as exc:
             logger.warning("analytics: cannot read history: %s", exc)
+        self._entries_cache[window_hours] = entries
         return entries
 
     def extract_incidents(self, window_hours: int = 168) -> list[IncidentRecord]:

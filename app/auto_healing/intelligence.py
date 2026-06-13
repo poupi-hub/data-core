@@ -296,8 +296,8 @@ class WorstServicesRanker:
             from app.auto_healing.analytics import HistoryReader
             from app.auto_healing.reliability import ReliabilityScorer
 
-            scorer = self._scorer or ReliabilityScorer(window_hours=window_hours)
             reader = self._reader or HistoryReader()
+            scorer = self._scorer or ReliabilityScorer(window_hours=window_hours, history_reader=reader)
 
             scores = scorer.score_all()
             mttr_map = reader.compute_mttr(window_hours=window_hours)
@@ -447,8 +447,8 @@ class RiskScorer:
             from app.auto_healing.analytics import HistoryReader
             from app.auto_healing.reliability import ReliabilityScorer
 
-            scorer = self._scorer or ReliabilityScorer(window_hours=window_hours)
             reader = self._reader or HistoryReader()
+            scorer = self._scorer or ReliabilityScorer(window_hours=window_hours, history_reader=reader)
 
             scores = scorer.score_all()
             mttr_map = reader.compute_mttr(window_hours=window_hours)
@@ -556,7 +556,7 @@ class RecommendationsEngine:
             from app.auto_healing.reliability import ReliabilityScorer
 
             reader = self._reader or HistoryReader()
-            scorer = self._scorer or ReliabilityScorer(window_hours=window_hours)
+            scorer = self._scorer or ReliabilityScorer(window_hours=window_hours, history_reader=reader)
 
             scores = scorer.score_all()
             healer_stats = reader.healer_stats(window_hours=window_hours)
@@ -769,7 +769,7 @@ class ExecutiveReporter:
             from app.auto_healing.reliability import ReliabilityScorer, _grade
 
             reader = self._reader or HistoryReader()
-            scorer = self._scorer or ReliabilityScorer(window_hours=window_hours)
+            scorer = self._scorer or ReliabilityScorer(window_hours=window_hours, history_reader=reader)
 
             # ── Global metrics from history ───────────────────────────────────
             incidents = reader.extract_incidents(window_hours=window_hours)
