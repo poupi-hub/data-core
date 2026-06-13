@@ -238,6 +238,34 @@ def run_global_auto_health_daily() -> None:
     _log.info("global_auto_health_daily: sent, status=%s", status)
 
 
+def run_performance_guard_daily() -> None:
+    """Run Performance Guard and send Telegram alert if verdict is HIGH/CRITICAL (06:30 UTC)."""
+    _log = logging.getLogger(__name__)
+    try:
+        from app.auto_healing.performance_guard import PerformanceReporter, SEVERITY_GO, SEVERITY_WARN
+        report = PerformanceReporter().run(window_hours=24)
+        _log.info(
+            "performance_guard_daily: verdict=%s latency=%s findings=%d",
+            report.verdict,
+            report.latency_s,
+            len(report.findings),
+        )
+        # Only send Telegram for HIGH/CRITICAL (WARN is noted in logs only)
+        if report.verdict in (SEVERITY_GO, SEVERITY_WARN):
+            return
+        token = getattr(settings, "telegram_bot_token", "")
+        chat_id = (
+            getattr(settings, "operational_chat_id", "")
+            or getattr(settings, "telegram_chat_id", "")
+        )
+        if token and chat_id:
+            _send_telegram(token, chat_id, report.to_telegram())
+    except Exception as exc:
+        logging.getLogger(__name__).warning(
+            "performance_guard_daily failed: %s", exc, exc_info=True
+        )
+
+
 def _send_telegram(token: str, chat_id: str, text: str) -> None:
     import logging
     _log = logging.getLogger(__name__)

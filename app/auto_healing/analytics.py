@@ -345,6 +345,10 @@ class MetricsCollector:
 class HistoryReader:
     """Parses auto_healing_watchdog.jsonl to reconstruct incident timeline."""
 
+    # Class-level counters — reset by PerformanceReporter before each benchmark
+    _cache_hits: int = 0
+    _cache_misses: int = 0
+
     def __init__(self, history_path: str | None = None) -> None:
         from core.config import settings
         self._path = Path(history_path or settings.auto_healing_history_path)
@@ -353,7 +357,9 @@ class HistoryReader:
     def read_entries(self, window_hours: int = 168) -> list[dict]:
         """Return all history entries within the window (newest first in file = chronological)."""
         if window_hours in self._entries_cache:
+            HistoryReader._cache_hits += 1
             return self._entries_cache[window_hours]
+        HistoryReader._cache_misses += 1
         if not self._path.exists():
             return []
         cutoff = datetime.now(timezone.utc) - timedelta(hours=window_hours)

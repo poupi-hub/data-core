@@ -668,3 +668,47 @@ def watchdog_cleanup_run(
 
     report = runner.run()
     return report.to_dict()
+
+
+# ════════════════════════════════════════════════════════════════════
+# Phase 6B — Performance Guard
+# ════════════════════════════════════════════════════════════════════
+
+@router.get("/performance", summary="Performance Guard: latency, file growth, cache, benchmark (Phase 6B)")
+def watchdog_performance(
+    window_hours: int = Query(24, ge=1, le=168, description="Window for latency measurement"),
+) -> dict[str, Any]:
+    """Run all performance monitors and return a DailyPerformanceReport.
+
+    Monitors:
+      1. Latency         — executive-summary computation time vs thresholds (<2s GO, 2-5s WARN, 5-8s HIGH, >8s CRITICAL)
+      2. File growth     — JSONL size, 24h growth, 30d projection (alert if >50MB projected)
+      3. Hot path        — file reads per request (alert if >5)
+      4. Benchmark       — fetch + render + telegram timings with trend
+      5. Cache health    — HistoryReader hit/miss ratio (alert if <70%)
+
+    Returns a GO/NO-GO verdict and findings classified CRITICAL/HIGH/MEDIUM/LOW.
+    """
+    from app.auto_healing.performance_guard import PerformanceReporter
+    report = PerformanceReporter().run(window_hours=window_hours)
+    return report.to_dict()
+
+
+@router.get("/performance/history", summary="Performance Guard — latency history (Phase 6B)")
+def watchdog_performance_history(
+    days: int = Query(7, ge=1, le=30, description="History window in days"),
+) -> dict[str, Any]:
+    """Return historical latency measurements from PerformanceGuard."""
+    from app.auto_healing.performance_guard import PerformanceGuard
+    guard = PerformanceGuard()
+    history = guard.load_history(days=days)
+    latencies = [e["latency_s"] for e in history if e.get("latency_s") is not None]
+    avg = round(sum(latencies) / len(latencies), 3) if latencies else None
+    _, trend = guard.compute_7d_stats()
+    return {
+        "days": days,
+        "entries": len(history),
+        "avg_latency_s": avg,
+        "trend": trend,
+        "history": history,
+    }
