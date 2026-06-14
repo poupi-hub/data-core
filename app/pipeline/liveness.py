@@ -35,7 +35,6 @@ from enum import Enum
 from pathlib import Path
 from typing import Any
 
-from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.pipeline.models import PipelineRun
@@ -120,23 +119,23 @@ PIPELINE_REGISTRY: list[PipelineDescriptor] = [
         stage="collection",
         expected_interval_seconds=60 * 60,   # crypto collectors run hourly
     ),
-    # ── Real Estate ───────────────────────────────────────────────────────────
-    PipelineDescriptor(
-        pipeline_id="collection_real_estate",
-        domain="real_estate",
-        stage="collection",
-        expected_interval_seconds=24 * 3600,   # daily at 03:30
-        degraded_lag_multiplier=1.5,
-        critical_lag_multiplier=3.0,
-    ),
-    PipelineDescriptor(
-        pipeline_id="normalize_real_estate",
-        domain="real_estate",
-        stage="normalization",
-        expected_interval_seconds=24 * 3600,
-        degraded_lag_multiplier=1.5,
-        critical_lag_multiplier=3.0,
-    ),
+    # ── Real Estate ── APOSENTADO 2026-06-13: tabelas dropadas em 0031_sunset ──
+    # PipelineDescriptor(
+    #     pipeline_id="collection_real_estate",
+    #     domain="real_estate",
+    #     stage="collection",
+    #     expected_interval_seconds=24 * 3600,
+    #     degraded_lag_multiplier=1.5,
+    #     critical_lag_multiplier=3.0,
+    # ),
+    # PipelineDescriptor(
+    #     pipeline_id="normalize_real_estate",
+    #     domain="real_estate",
+    #     stage="normalization",
+    #     expected_interval_seconds=24 * 3600,
+    #     degraded_lag_multiplier=1.5,
+    #     critical_lag_multiplier=3.0,
+    # ),
     # ── Trading ───────────────────────────────────────────────────────────────
     PipelineDescriptor(
         pipeline_id="normalize_trading",

@@ -7,7 +7,7 @@ Todos os cálculos são SQL-first (sem ORM pesado) para minimizar overhead.
 from __future__ import annotations
 
 import logging
-from datetime import date, datetime, timedelta, timezone
+from datetime import date, datetime, timezone
 from typing import Any
 
 from sqlalchemy import text
@@ -560,7 +560,7 @@ def _calc_coverage_score(
 
 def compute_all_dataset_integrity(db: Session) -> None:
     """Calcula e persiste integridade para todos os datasets e fontes."""
-    datasets = ["jobs", "real_estate"]
+    datasets = ["jobs"]  # real_estate aposentado 2026-06-13
     for dataset in datasets:
         # Score agregado
         try:
@@ -604,7 +604,7 @@ def take_daily_snapshot(db: Session) -> list[DatasetSnapshot]:
     """Gera (ou atualiza) o snapshot do dia para todos os datasets/fontes."""
     today = date.today()
     results = []
-    datasets = ["jobs", "real_estate"]
+    datasets = ["jobs"]  # real_estate aposentado 2026-06-13
 
     for dataset in datasets:
         # Snapshot por fonte
@@ -633,7 +633,6 @@ def _upsert_snapshot(
     source: str | None,
 ) -> DatasetSnapshot:
     """Cria ou atualiza o snapshot do dia."""
-    from sqlalchemy.dialects.postgresql import insert as pg_insert
 
     where_clause = "module = :dataset"
     params: dict[str, Any] = {"dataset": dataset}
