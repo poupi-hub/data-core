@@ -6,14 +6,15 @@ changes are applied only when explicitly enabled and not in dry-run mode.
 
 from __future__ import annotations
 
-from collections import Counter
-from dataclasses import asdict, dataclass
-from datetime import datetime, timedelta, timezone
 import json
 import logging
-from pathlib import Path
 import time
-from typing import Any, Callable, TypeVar
+from collections import Counter
+from collections.abc import Callable
+from dataclasses import asdict, dataclass
+from datetime import datetime, timedelta, timezone
+from pathlib import Path
+from typing import Any, TypeVar
 
 from sqlalchemy import func
 from sqlalchemy.orm import Session
@@ -45,14 +46,12 @@ PRIORITY_VALUE = {
 
 JOB_PRIORITIES = {
     "operational_watchdog_job": "CRITICAL",
-    "watchdog_heartbeat_job": "HIGH",
     "cleanup_stale_runs_job": "HIGH",
     "normalize_job": "HIGH",
     "analytics_job": "NORMAL",
     "run_ecommerce_url_targets_job": "NORMAL",
     "dataset_quality_crypto_job": "NORMAL",
     "signal_outcomes_job": "NORMAL",
-    "run_real_estate_daily_collection": "LOW",
     "alert_webhook_job": "LOW",
     "data_retention_job": "LOW",
 }
